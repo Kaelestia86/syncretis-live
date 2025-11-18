@@ -69,15 +69,23 @@ async function getOrCreateSession(sessionId) {
 }
 
 // ----- Express + WebSocket -----
-const app = express();
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve the static files from /Public
+const app = express();
+
+// Serve static files from the Public folder
 app.use(express.static(path.join(__dirname, "Public")));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "Public", "index.html"));
+});
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "Public", "index.html"));

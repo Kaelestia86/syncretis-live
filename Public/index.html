@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Realms of Syncretis – Live Session</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Realms of Syncretis – Live Session</h1>
+    </header>
+
+    <!-- CONNECT SECTION -->
+    <section id="connectSection">
+      <h2>Connect</h2>
+
+      <div class="row">
+        <label>Session ID:
+          <input type="text" id="sessionIdInput" placeholder="e.g. ECHO-1" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Name:
+          <input type="text" id="playerNameInput" placeholder="Your Warden name" />
+        </label>
+      </div>
+
+      <!-- RACE SELECT -->
+      <div class="row">
+        <label>Race:
+          <select id="raceSelect">
+            <option value="">-- Select Race --</option>
+            <option value="Aethrial">Aethrial</option>
+            <option value="Vey'ruun">Vey'ruun</option>
+            <option value="Lumirite">Lumirite</option>
+            <option value="Dralith">Dralith</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- CLASS SELECT -->
+      <div class="row">
+        <label>Class:
+          <select id="classSelect">
+            <option value="">-- Select Class --</option>
+
+            <optgroup label="Claws of Dragoon">
+              <option value="Talons of Dragoon">Talons of Dragoon</option>
+              <option value="Scales of Dragoon">Scales of Dragoon</option>
+              <option value="Eyes of Dragoon">Eyes of Dragoon</option>
+            </optgroup>
+
+            <optgroup label="Heart of Dragoon">
+              <option value="Tempest Weaver">Tempest Weaver</option>
+              <option value="Ember Sage">Ember Sage</option>
+              <option value="Heart-Stone">Heart-Stone</option>
+              <option value="Tears">Tears</option>
+            </optgroup>
+
+            <optgroup label="Shades of Dragoon">
+              <option value="Eclipsar">Eclipsar</option>
+              <option value="Rhythm of Dragoon">Rhythm of Dragoon</option>
+              <option value="Shadow Weaver">Shadow Weaver</option>
+            </optgroup>
+
+            <optgroup label="Other / Custom">
+              <option value="Custom Warden">Custom Warden</option>
+            </optgroup>
+
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          <input type="checkbox" id="isSwCheckbox" />
+          I am the Story Weaver
+        </label>
+      </div>
+
+      <button id="joinBtn">Join Session</button>
+      <button id="rejoinBtn">Rejoin Saved Session</button>
+      <div id="connectStatus"></div>
+    </section>
+
+    <!-- NAVIGATION -->
+    <nav id="mainNav" class="hidden">
+      <button data-tab="playerTab">Player</button>
+      <button data-tab="storyWeaverTab" id="swTabButton">Story Weaver</button>
+    </nav>
+
+    <main>
+      <!-- PLAYER TAB -->
+      <section id="playerTab" class="tab hidden">
+        <h2>Player Panel</h2>
+
+        <!-- PLAYER INFO -->
+        <div id="playerInfo">
+          <p><strong>Name:</strong> <span id="playerNameDisplay">—</span></p>
+          <p><strong>Race:</strong> <span id="playerRaceDisplay">—</span></p>
+          <p><strong>Class:</strong> <span id="playerClassDisplay">—</span></p>
+          <p><strong>HP:</strong> <span id="hpDisplay">—</span></p>
+          <p><strong>Level:</strong> <span id="levelDisplay">—</span></p>
+        </div>
+
+        <!-- NEXUS BLOCK -->
+        <section id="nexusSection" class="stat-block">
+          <h3>Nexus</h3>
+          <div class="nexus-display">
+            <span id="nexusValue">40</span> / <span id="maxNexusValue">40</span>
+          </div>
+          <div class="nexus-buttons">
+            <button onclick="changeNexus(+1)">+1</button>
+            <button onclick="changeNexus(-1)">-1</button>
+            <button onclick="resetNexus()">Reset</button>
+          </div>
+        </section>
+
+        <!-- STRESS BLOCK -->
+        <section id="stressSection" class="stat-block">
+          <h3>Stress</h3>
+          <div id="stressBar" class="stress-bar"></div>
+          <div class="stress-buttons">
+            <button onclick="changeStress(+1)">+1</button>
+            <button onclick="changeStress(-1)">-1</button>
+            <button onclick="resetStress()">Reset</button>
+          </div>
+        </section>
+
+               <!-- DICE ROLLER -->
+        <section id="diceRoller">
+          <h3>🎲 Dice Roller</h3>
+          <button class="die-btn" data-die="6">Roll D6</button>
+          <button class="die-btn" data-die="10">Roll D10</button>
+          <button class="die-btn" data-die="20">Roll D20</button>
+          <div id="diceResults"></div>
+        </section>
+
+        <!-- CLASS SKILLS -->
+        <section id="classSkills" class="stat-block">
+          <h3>Class Skills</h3>
+          <p id="classSkillsHint" class="skills-hint">
+            Select a class above, then click a skill to roll 1d6 (odds = success), spend Nexus, and roll damage.
+          </p>
+          <div id="skillsContainer"></div>
+          <div id="skillResult" class="skill-result"></div>
+        </section>
+
+        <!-- LEVEL CONTROLS -->
+        <section id="levelControls">
+          <h3>⬆️ Level Controls</h3>
+          <button id="levelUpBtn">Level Up (3d6 HP)</button>
+          <button id="levelDownBtn">Level Down (undo last)</button>
+        </section>
+
+        <!-- PARTY LIST -->
+        <section id="playersListSection">
+          <h3>Party</h3>
+          <ul id="playersList" class="player-list"></ul>
+        </section>
+      </section>
+
+      <!-- STORY WEAVER TAB -->
+      <section id="storyWeaverTab" class="tab hidden">
+        <h2>📜 Story Weaver</h2>
+
+        <!-- MAP -->
+        <section>
+          <h3>Map</h3>
+          <div id="mapDisplay">No map selected.</div>
+          <div id="swMapControls">
+            <input type="text" id="mapUrlInput" placeholder="Paste map image URL..." />
+            <button id="setMapBtn">Set Map</button>
+          </div>
+        </section>
+
+        <!-- CONFLICT -->
+        <section>
+          <h3>Conflict Management</h3>
+          <div id="conflictInfo">No active conflict.</div>
+          <input type="text" id="conflictNameInput" placeholder="Conflict name..." />
+          <button id="startConflictBtn">Start Conflict</button>
+          <button id="endConflictBtn">End Conflict</button>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>

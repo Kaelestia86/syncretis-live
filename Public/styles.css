@@ -1,0 +1,519 @@
+/* ============================================
+   REALMS OF SYNCRETIS – ETHEREAL CODEX THEME
+   Wave 1 + Wave 2 (High Magic)
+============================================ */
+
+/* ---------- GLOBAL ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #301549 0, #0b0611 45%, #050308 100%);
+  color: #f4ecff;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* Generic fade-in for newly mounted elements */
+@keyframes fadeInSoft {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Slight float shimmer for important panels */
+@keyframes panelGlow {
+  0%   { box-shadow: 0 0 16px rgba(80, 46, 152, 0.65), inset 0 0 12px rgba(5, 2, 10, 0.9); }
+  50%  { box-shadow: 0 0 22px rgba(118, 76, 210, 0.9), inset 0 0 16px rgba(8, 3, 18, 1); }
+  100% { box-shadow: 0 0 16px rgba(80, 46, 152, 0.65), inset 0 0 12px rgba(5, 2, 10, 0.9); }
+}
+
+/* Nexus pulse for special buttons */
+@keyframes nexusPulse {
+  0%   { box-shadow: 0 0 0 rgba(118, 198, 255, 0.0); transform: translateY(0); }
+  50%  { box-shadow: 0 0 16px rgba(118, 198, 255, 0.8); transform: translateY(-1px); }
+  100% { box-shadow: 0 0 0 rgba(118, 198, 255, 0.0); transform: translateY(0); }
+}
+
+/* Shimmer for gold borders (conflict, important info) */
+@keyframes goldShimmer {
+  0%   { box-shadow: 0 0 0 rgba(255, 223, 128, 0.0); }
+  50%  { box-shadow: 0 0 16px rgba(255, 223, 128, 0.9); }
+  100% { box-shadow: 0 0 0 rgba(255, 223, 128, 0.0); }
+}
+
+h1, h2, h3 {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  color: #e5d1ff;
+  text-shadow: 0 0 7px rgba(111, 66, 193, 0.9);
+}
+
+/* Fancy section headers */
+h2 {
+  position: relative;
+  font-size: 1.3rem;
+}
+
+h2::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 62px;
+  height: 2px;
+  background: linear-gradient(90deg, #f0d18c, #8c6af0 60%, transparent);
+  opacity: 0.9;
+}
+
+h3 {
+  font-size: 1.05rem;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px;
+  animation: fadeInSoft 0.4s ease-out;
+}
+
+/* ---------- HEADER ---------- */
+
+header {
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(196, 177, 255, 0.35);
+}
+
+header h1 {
+  font-size: 1.9rem;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- COMMON ELEMENTS ---------- */
+
+.hidden {
+  display: none;
+}
+
+label {
+  font-size: 0.95rem;
+}
+
+input[type="text"] {
+  display: block;
+  width: 260px;
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid #3f3254;
+  background: rgba(16, 11, 28, 0.9);
+  color: #fdf7ff;
+  outline: none;
+  transition: border 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+input[type="text"]::placeholder {
+  color: #8b7aa9;
+}
+
+input[type="text"]:focus {
+  border-color: #aa7bff;
+  box-shadow: 0 0 7px rgba(170, 123, 255, 0.7);
+  background: #140c22;
+}
+
+/* ---------- BUTTONS ---------- */
+
+button {
+  background: radial-gradient(circle at top left, #6a33b7, #47247f);
+  border: 1px solid #b18cff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: #f9f4ff;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  margin: 4px 4px 4px 0;
+  letter-spacing: 0.03em;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+  text-shadow: 0 0 4px rgba(177, 140, 255, 0.7);
+}
+
+button:hover {
+  background: radial-gradient(circle at top left, #7a3fd0, #553099);
+  box-shadow: 0 0 14px rgba(160, 109, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ---------- CONNECT PANEL ---------- */
+
+#connectSection {
+  background: radial-gradient(circle at top left, #281538 0, #130a21 45%, #10071c 100%);
+  border-radius: 14px;
+  padding: 18px 18px 14px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(191, 164, 255, 0.55);
+  box-shadow:
+    0 0 18px rgba(90, 54, 170, 0.8),
+    inset 0 0 18px rgba(12, 4, 26, 0.9);
+  animation: fadeInSoft 0.4s ease-out;
+}
+
+#connectSection h2 {
+  margin-bottom: 10px;
+}
+
+.row {
+  margin-bottom: 10px;
+}
+
+#connectStatus {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #e8d7a6;
+}
+
+/* ---------- NAVIGATION BAR ---------- */
+
+#mainNav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+#mainNav button {
+  flex: 1;
+  padding: 10px;
+  background: linear-gradient(135deg, #362052, #251736);
+  border-radius: 999px;
+  border-color: #8c6ae0;
+}
+
+#mainNav button:hover {
+  background: linear-gradient(135deg, #463068, #2f1d43);
+  box-shadow: 0 0 16px rgba(140, 106, 224, 0.8);
+}
+
+/* ---------- TABS (PANELS) ---------- */
+
+.tab {
+  background: radial-gradient(circle at top, #1f132e 0, #13091d 55%, #0b050f 100%);
+  border-radius: 14px;
+  padding: 18px;
+  border: 1px solid rgba(186, 157, 255, 0.7);
+  box-shadow:
+    0 0 16px rgba(80, 46, 152, 0.8),
+    inset 0 0 12px rgba(5, 2, 10, 0.9);
+  animation: fadeInSoft 0.35s ease-out;
+}
+
+/* ------------------------------------
+   PLAYER PANEL
+------------------------------------ */
+
+#playerInfo {
+  background: rgba(16, 8, 33, 0.9);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(138, 107, 226, 0.85);
+  margin-bottom: 12px;
+  position: relative;
+}
+
+#playerInfo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 246, 209, 0.06);
+  pointer-events: none;
+}
+
+#playerInfo p {
+  margin: 4px 0;
+  font-size: 0.98rem;
+}
+
+/* ---------- STAT BLOCKS (NEXUS / STRESS) ---------- */
+
+.stat-block {
+  background: rgba(10, 6, 20, 0.95);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(140, 93, 220, 0.85);
+  margin: 12px 0;
+  position: relative;
+  animation: panelGlow 4s ease-in-out infinite;
+}
+
+.stat-block h3 {
+  margin-bottom: 6px;
+}
+
+/* subtle inner border */
+.stat-block::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 246, 209, 0.08);
+  pointer-events: none;
+}
+
+.nexus-display {
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+
+.nexus-buttons button {
+  margin-right: 6px;
+}
+
+/* Make Nexus / Level controls feel more "Nexus-charged" */
+#levelControls button,
+.nexus-buttons button {
+  animation: nexusPulse 3.5s ease-in-out infinite;
+}
+
+/* ---------- STRESS BAR ---------- */
+
+.stress-bar {
+  display: flex;
+  gap: 3px;
+  margin: 4px 0 8px 0;
+}
+
+.stress-segment {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #2a2236;
+  border: 1px solid #403552;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+/* stress color states */
+.active-calm {
+  background: #2ecc71;
+  box-shadow: 0 0 7px rgba(46, 204, 113, 0.9);
+}
+
+.active-strained {
+  background: #f1c40f;
+  box-shadow: 0 0 7px rgba(241, 196, 15, 0.9);
+}
+
+.active-breaking {
+  background: #e67e22;
+  box-shadow: 0 0 7px rgba(230, 126, 34, 1);
+}
+
+.active-shatter {
+  background: #e74c3c;
+  box-shadow: 0 0 12px rgba(231, 76, 60, 1);
+}
+
+/* ------------------------------------
+   DICE ROLLER
+------------------------------------ */
+
+#diceRoller {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(120, 92, 205, 0.6);
+}
+
+#diceResults {
+  margin-top: 8px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+#diceResults p {
+  margin: 3px 0;
+  background: rgba(24, 15, 40, 0.95);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(124, 95, 214, 0.8);
+  animation: fadeInSoft 0.2s ease-out;
+}
+
+/* ------------------------------------
+   LEVEL CONTROLS
+------------------------------------ */
+
+#levelControls {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(120, 92, 205, 0.6);
+}
+
+/* ------------------------------------
+   PARTY LIST
+------------------------------------ */
+
+#playersListSection {
+  margin-top: 18px;
+}
+
+#playersListSection h3 {
+  margin-bottom: 6px;
+}
+
+#playersListSection ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+#playersList li {
+  margin: 5px 0;
+  background: rgba(17, 10, 30, 0.98);
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(123, 95, 214, 0.9);
+  animation: fadeInSoft 0.22s ease-out;
+}
+
+/* Remove button styling */
+.player-list button {
+  margin-left: 10px;
+  background: radial-gradient(circle at top left, #b93b3b, #7a2424);
+  border-color: #f0a0a0;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+
+.player-list button:hover {
+  background: radial-gradient(circle at top left, #c84444, #8a2a2a);
+  box-shadow: 0 0 12px rgba(240, 160, 160, 0.9);
+}
+
+/* ------------------------------------
+   STORY WEAVER – MAP & CONFLICT
+------------------------------------ */
+
+#storyWeaverTab section {
+  margin-bottom: 18px;
+}
+
+/* Map */
+
+#mapDisplay {
+  margin-top: 6px;
+  min-height: 110px;
+  background: radial-gradient(circle at top, #1a1027 0, #0d0716 55%, #05030a 100%);
+  border-radius: 10px;
+  padding: 8px;
+  border: 1px solid rgba(141, 104, 226, 0.8);
+  text-align: center;
+  font-size: 0.9rem;
+  position: relative;
+}
+
+#mapDisplay img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 6px;
+  border: 1px solid rgba(209, 190, 255, 0.9);
+  animation: fadeInSoft 0.35s ease-out;
+}
+
+/* Conflict */
+
+#conflictInfo {
+  background: rgba(24, 15, 39, 0.97);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(230, 207, 129, 0.95);
+  margin-bottom: 8px;
+  color: #ffe7a0;
+  animation: goldShimmer 5.5s ease-in-out infinite;
+}
+
+/* ------------------------------------
+   RESPONSIVE
+------------------------------------ */
+
+@media (max-width: 640px) {
+  .app {
+    padding: 10px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+  }
+
+  #mainNav {
+    flex-direction: column;
+  }
+}
+/* ------------------------------------
+   CLASS SKILLS PANEL
+------------------------------------ */
+
+#classSkills {
+  margin-top: 16px;
+}
+
+#classSkills h3 {
+  margin-bottom: 6px;
+}
+
+.skills-hint {
+  font-size: 0.82rem;
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+
+#skillsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.skill-row {
+  border: 1px solid rgba(140, 93, 220, 0.5);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: radial-gradient(circle at top left, rgba(41, 23, 66, 0.95), rgba(17, 8, 30, 0.95));
+}
+
+.skill-btn {
+  width: 100%;
+  justify-content: flex-start;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+}
+
+.skill-desc {
+  margin: 4px 2px 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.skill-empty {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.skill-result {
+  font-size: 0.86rem;
+  margin-top: 2px;
+  min-height: 1.2em;
+}

@@ -1,468 +1,316 @@
-import 'dotenv/config';
-import express from 'express';
-import http from 'http';
-import { WebSocketServer } from 'ws';
-import mongoose from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
-
-const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
-
-// ----- Mongo Schemas -----
-const LevelHistorySchema = new mongoose.Schema({
-  level: Number,
-  hpGain: Number,
-  rolls: [Number]
-}, { _id: false });
-
-const PlayerSchema = new mongoose.Schema({
-  playerId: { type: String, required: true },
-  name: String,
-  role: { type: String, enum: ['player', 'storyWeaver'], default: 'player' },
-  race: { type: String, default: '' },        // ⭐ NEW
-  className: { type: String, default: '' },   // ⭐ NEW
-  level: { type: Number, default: 1 },
-  maxHp: { type: Number, default: 18 },
-  currentHp: { type: Number, default: 18 },
-  nexus: { type: Number, default: 40 },
-  maxNexus: { type: Number, default: 40 },
-  stress: { type: Number, default: 0 },
-  levelHistory: [LevelHistorySchema]
-}, { _id: false });
-
-const StorySchema = new mongoose.Schema({
-  activeConflict: {
-    id: String,
-    name: String,
-    round: Number
-  }
-}, { _id: false });
-
-const SessionSchema = new mongoose.Schema({
-  sessionId: { type: String, unique: true, index: true },
-  players: [PlayerSchema],
-  mapUrl: String,
-  story: StorySchema
-}, { timestamps: true });
-
-const Session = mongoose.model('Session', SessionSchema);
-
-// ----- Cache -----
-const sessionsCache = new Map();
-
-async function getOrCreateSession(sessionId) {
-  if (sessionsCache.has(sessionId)) return sessionsCache.get(sessionId);
-
-  let session = await Session.findOne({ sessionId });
-  if (!session) {
-    session = new Session({
-      sessionId,
-      players: [],
-      mapUrl: '',
-      story: { activeConflict: null }
-    });
-    await session.save();
-  }
-
-  sessionsCache.set(sessionId, session);
-  return session;
-}
-
-// ----- Express + WebSocket -----
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// -----------------------------------------------------------------------------
+// Realms of Syncretis – Live Session Server
+// -----------------------------------------------------------------------------
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const WebSocket = require("ws");
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// Serve static files from the Public folder
-app.use(express.static(path.join(__dirname, "Public")));
+const PORT = process.env.PORT || 3000;
 
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "Public", "index.html"));
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+// -----------------------------------------------------------------------------
+// SESSION STATE
+// -----------------------------------------------------------------------------
+const sessions = {}; // { SESSIONID: { players: [], story: {}, map: {} } }
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "Public", "index.html"));
-});
+// Simple helper
+function send(ws, obj) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  }
+}
 
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+// Broadcast to all players in a session
+function broadcast(sessionId, obj) {
+  const session = sessions[sessionId];
+  if (!session) return;
 
-wss.on('connection', ws => {
-  ws.sessionId = null;
-  ws.playerId = null;
+  session.players.forEach((p) => send(p.ws, obj));
+}
 
-  ws.on('message', async data => {
+// -----------------------------------------------------------------------------
+// WEBSOCKET CONNECTION
+// -----------------------------------------------------------------------------
+wss.on("connection", (ws) => {
+  console.log("Client connected");
+
+  ws.on("message", (data) => {
     let msg;
     try {
-      msg = JSON.parse(data.toString());
-    } catch (err) {
-      console.error("Invalid JSON", err);
+      msg = JSON.parse(data);
+    } catch {
+      console.log("Invalid JSON:", data);
       return;
     }
 
-    try {
-      await handleMessage(ws, msg);
-    } catch (e) {
-      console.error("Error handling message", e);
+    const type = msg.type;
+
+    // -------------------------------------------------------------------------
+    // 1) JOIN SESSION
+    // -------------------------------------------------------------------------
+    if (type === "joinSession") {
+      const { sessionId, playerName, race, className, role } = msg;
+      const sid = sessionId.toUpperCase();
+
+      if (!sessions[sid]) {
+        sessions[sid] = {
+          players: [],
+          story: {},
+          map: {}
+        };
+      }
+
+      const playerId = "P" + Math.random().toString(36).slice(2);
+      const player = {
+        playerId,
+        name: playerName,
+        race,
+        className,
+        role: role || "player",
+        ws,
+        level: 1,
+        maxHp: 10,
+        currentHp: 10,
+        stress: 0,
+        maxNexus: 40,
+        nexus: 40
+      };
+
+      sessions[sid].players.push(player);
+
+      // Confirm join
+      send(ws, {
+        type: "sessionJoined",
+        sessionId: sid,
+        playerId
+      });
+
+      // Send session state
+      send(ws, {
+        type: "sessionState",
+        sessionId: sid,
+        you: player,
+        players: sessions[sid].players.map(stripWS),
+        map: sessions[sid].map,
+        story: sessions[sid].story
+      });
+
+      broadcastPlayersList(sid);
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 2) REJOIN SESSION
+    // -------------------------------------------------------------------------
+    if (type === "rejoinSession") {
+      const sid = msg.sessionId.toUpperCase();
+      const pid = msg.playerId;
+
+      const session = sessions[sid];
+      if (!session) return;
+
+      const player = session.players.find((p) => p.playerId === pid);
+      if (!player) return;
+
+      player.ws = ws; // rebind socket
+
+      send(ws, {
+        type: "sessionState",
+        sessionId: sid,
+        you: player,
+        players: session.players.map(stripWS),
+        map: session.map,
+        story: session.story
+      });
+
+      broadcastPlayersList(sid);
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 3) UPDATE PLAYER (HP, Nexus, Stress, etc.)
+    // -------------------------------------------------------------------------
+    if (type === "playerUpdate") {
+      const sid = msg.sessionId;
+      const pid = msg.playerId;
+
+      const session = sessions[sid];
+      if (!session) return;
+
+      const idx = session.players.findIndex((p) => p.playerId === pid);
+      if (idx === -1) return;
+
+      // Update player fields (except ws)
+      session.players[idx] = {
+        ...session.players[idx],
+        ...msg.player,
+        ws: session.players[idx].ws
+      };
+
+      broadcastPlayersList(sid);
+
+      send(session.players[idx].ws, {
+        type: "playerUpdate",
+        player: session.players[idx],
+        players: session.players.map(stripWS)
+      });
+
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 4) DICE ROLL
+    // -------------------------------------------------------------------------
+    if (type === "rollDice") {
+      const { sessionId, playerId, sides, count } = msg;
+      const sid = sessionId;
+      const c = Math.max(1, count || 1);
+      const die = Math.max(2, sides || 6);
+
+      const session = sessions[sid];
+      if (!session) return;
+
+      const player = session.players.find((p) => p.playerId === playerId);
+      if (!player) return;
+
+      const rolls = [];
+      let total = 0;
+
+      for (let i = 0; i < c; i++) {
+        const r = Math.floor(Math.random() * die) + 1;
+        rolls.push(r);
+        total += r;
+      }
+
+      broadcast(sid, {
+        type: "diceResult",
+        playerName: player.name,
+        rolls,
+        total,
+        count: c,
+        sides: die
+      });
+
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5) SKILL USE
+    // -------------------------------------------------------------------------
+    if (type === "skillUse") {
+      const sid = msg.sessionId;
+      const session = sessions[sid];
+      if (!session) return;
+
+      broadcast(sid, {
+        type: "skillResult",
+        playerName: getPlayerName(session, msg.playerId),
+        abilityName: msg.abilityName,
+        success: msg.success,
+        hitRoll: msg.hitRoll,
+        totalDamage: msg.totalDamage,
+        breakdown: msg.breakdown,
+        nexusCost: msg.nexusCost,
+        remainingNexus: msg.remainingNexus
+      });
+
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 6) MAP UPDATE
+    // -------------------------------------------------------------------------
+    if (type === "updateMap") {
+      const sid = msg.sessionId;
+      if (!sessions[sid]) return;
+
+      sessions[sid].map = { url: msg.url };
+
+      broadcast(sid, {
+        type: "mapUpdate",
+        map: sessions[sid].map
+      });
+
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 7) CONFLICT START/END
+    // -------------------------------------------------------------------------
+    if (type === "startConflict") {
+      const sid = msg.sessionId;
+      if (!sessions[sid]) return;
+
+      sessions[sid].story.activeConflict = {
+        name: msg.name,
+        round: 1
+      };
+
+      broadcast(sid, {
+        type: "storyUpdate",
+        story: sessions[sid].story
+      });
+
+      return;
+    }
+
+    if (type === "endConflict") {
+      const sid = msg.sessionId;
+      if (!sessions[sid]) return;
+
+      sessions[sid].story.activeConflict = null;
+
+      broadcast(sid, {
+        type: "storyUpdate",
+        story: sessions[sid].story
+      });
+
+      return;
     }
   });
 
-  ws.on('close', () => {
-    // We keep players in the session for persistence
+  ws.on("close", () => {
+    console.log("Client disconnected");
   });
 });
 
-// ----- Helpers -----
-function broadcastToSession(sessionId, payload) {
-  const data = JSON.stringify(payload);
-  wss.clients.forEach(client => {
-    if (client.readyState === 1 && client.sessionId === sessionId) {
-      client.send(data);
-    }
+// -----------------------------------------------------------------------------
+// HELPERS
+// -----------------------------------------------------------------------------
+function stripWS(player) {
+  const clone = { ...player };
+  delete clone.ws;
+  return clone;
+}
+
+function broadcastPlayersList(sessionId) {
+  const session = sessions[sessionId];
+  if (!session) return;
+
+  broadcast(sessionId, {
+    type: "playersList",
+    players: session.players.map(stripWS)
   });
 }
 
-function rollDie(sides) {
-  return Math.floor(Math.random() * sides) + 1;
+function getPlayerName(session, pid) {
+  const p = session.players.find((pl) => pl.playerId === pid);
+  return p ? p.name : "Unknown";
 }
 
-function roll3d6() {
-  const r1 = rollDie(6);
-  const r2 = rollDie(6);
-  const r3 = rollDie(6);
-  return { total: r1 + r2 + r3, rolls: [r1, r2, r3] };
-}
-
-// ----- Message Handler -----
-async function handleMessage(ws, msg) {
-  const type = msg.type;
-
-  //
-  // JOIN SESSION
-  //
-  if (type === 'joinSession') {
-    let { sessionId, playerName, role, race, className } = msg;
-
-    sessionId = (sessionId || '').trim().toUpperCase();
-    if (!sessionId) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Missing sessionId' }));
-      return;
-    }
-
-    console.log("JOIN SESSION:", sessionId, "player:", playerName);
-
-    const session = await getOrCreateSession(sessionId);
-
-    const playerId = uuidv4();
-    const player = {
-      playerId,
-      name: playerName || "Unnamed",
-      role: role === "storyWeaver" ? "storyWeaver" : "player",
-      race: race || '',
-      className: className || '',
-      level: 1,
-      maxHp: 18,
-      currentHp: 18,
-      nexus: 40,
-      maxNexus: 40,
-      stress: 0,
-      levelHistory: []
-    };
-
-    session.players.push(player);
-    await session.save();
-
-    ws.sessionId = sessionId;
-    ws.playerId = playerId;
-
-    ws.send(JSON.stringify({
-      type: "sessionState",
-      sessionId,
-      you: player,
-      players: session.players,
-      mapUrl: session.mapUrl,
-      story: session.story
-    }));
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-  }
-
-  //
-  // REJOIN SESSION
-  //
-  else if (type === 'rejoinSession') {
-    let { sessionId, playerId } = msg;
-
-    sessionId = (sessionId || "").trim().toUpperCase();
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-
-    if (!player) {
-      ws.send(JSON.stringify({ type: "error", message: "Player not found" }));
-      return;
-    }
-
-    ws.sessionId = sessionId;
-    ws.playerId = playerId;
-
-    ws.send(JSON.stringify({
-      type: "sessionState",
-      sessionId,
-      you: player,
-      players: session.players,
-      mapUrl: session.mapUrl,
-      story: session.story
-    }));
-  }
-
-  //
-  // ROLL DICE
-  //
-  else if (type === 'rollDice') {
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player) return;
-
-    const result = rollDie(msg.die || 6);
-
-    broadcastToSession(sessionId, {
-      type: "diceResult",
-      die: msg.die,
-      result,
-      playerId,
-      playerName: player.name
-    });
-  }
-
-  //
-  // LEVEL UP
-  //
-  else if (type === 'levelUp') {
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player) return;
-
-    const { total, rolls } = roll3d6();
-
-    player.level += 1;
-    player.maxHp += total;
-    player.currentHp += total;
-    player.levelHistory.push({ level: player.level, hpGain: total, rolls });
-
-    session.markModified("players");
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-  }
-
-  //
-  // LEVEL DOWN
-  //
-  else if (type === 'levelDown') {
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player || player.levelHistory.length === 0) return;
-
-    const last = player.levelHistory.pop();
-    player.maxHp -= last.hpGain;
-    player.currentHp = Math.min(player.currentHp, player.maxHp);
-    player.level = Math.max(1, player.level - 1);
-
-    session.markModified("players");
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-  }
-
-  //
-  // SET MAP
-  //
-  else if (type === 'setMap') {
-    const sessionId = ws.sessionId;
-    if (!sessionId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    session.mapUrl = msg.url || "";
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "mapUpdate",
-      url: session.mapUrl
-    });
-  }
-
-  //
-  // START CONFLICT
-  //
-  else if (type === 'startConflict') {
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player || player.role !== "storyWeaver") return;
-
-    session.story = {
-      activeConflict: {
-        id: String(Date.now()),
-        name: msg.name || "Unnamed Conflict",
-        round: 1
-      }
-    };
-
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "storyUpdate",
-      story: session.story
-    });
-  }
-
-  //
-  // END CONFLICT
-  //
-  else if (type === 'endConflict') {
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player || player.role !== "storyWeaver") return;
-
-    session.story = { activeConflict: null };
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "storyUpdate",
-      story: session.story
-    });
-  }
-
-  //
-  // REMOVE PLAYER (Story Weaver only)
-  //
-  else if (type === 'removePlayer') {
-    const { targetId } = msg;
-    const sessionId = ws.sessionId;
-    const playerId = ws.playerId;
-    if (!sessionId || !playerId) return;
-
-    const session = await getOrCreateSession(sessionId);
-    const requester = session.players.find(p => p.playerId === playerId);
-    if (!requester || requester.role !== "storyWeaver") {
-      console.warn("Unauthorized removePlayer attempt.");
-      return;
-    }
-
-    session.players = session.players.filter(p => p.playerId !== targetId);
-
-    session.markModified('players');
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-
-    console.log(`Player removed: ${targetId}`);
-  }
-
-  //
-  // UPDATE NEXUS
-  //
-  else if (type === 'updateNexus') {
-    const { sessionId, playerId, amount } = msg;
-    const session = await getOrCreateSession(sessionId);
-
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player) return;
-
-    player.nexus = Math.max(
-      0,
-      Math.min(player.nexus + amount, player.maxNexus || 40)
-    );
-
-    session.markModified("players");
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-  }
-
-  //
-  // UPDATE STRESS
-  //
-  else if (type === 'updateStress') {
-    const { sessionId, playerId, amount } = msg;
-    const session = await getOrCreateSession(sessionId);
-
-    const player = session.players.find(p => p.playerId === playerId);
-    if (!player) return;
-
-    player.stress = Math.max(0, Math.min(player.stress + amount, 10));
-
-    session.markModified("players");
-    await session.save();
-
-    broadcastToSession(sessionId, {
-      type: "playersUpdate",
-      players: session.players
-    });
-
-    if (player.stress === 10) {
-      broadcastToSession(sessionId, {
-        type: "shatterEvent",
-        playerId,
-        message: `${player.name} has reached SHATTER!`
-      });
-    }
-  }
-}
-
-// ----- Start Server -----
-(async () => {
-  try {
-    await mongoose.connect(MONGODB_URI);
-    console.log("Connected to MongoDB");
-
-    server.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
-    });
-
-  } catch (err) {
-    console.error("Failed to start server", err);
-    process.exit(1);
-  }
-})();
+// -----------------------------------------------------------------------------
+// START SERVER
+// -----------------------------------------------------------------------------
+server.listen(PORT, () => {
+  console.log("Listening on port", PORT);
+});

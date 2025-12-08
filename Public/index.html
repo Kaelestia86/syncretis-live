@@ -12,7 +12,6 @@
       <h1>Realms of Syncretis – Live Session</h1>
     </header>
 
-    <!-- CONNECT SECTION -->
     <section id="connectSection">
       <h2>Connect</h2>
 
@@ -28,7 +27,6 @@
         </label>
       </div>
 
-      <!-- RACE SELECT -->
       <div class="row">
         <label>Race:
           <select id="raceSelect">
@@ -41,7 +39,6 @@
         </label>
       </div>
 
-      <!-- CLASS SELECT -->
       <div class="row">
         <label>Class:
           <select id="classSelect">
@@ -86,18 +83,15 @@
       <div id="connectStatus"></div>
     </section>
 
-    <!-- NAVIGATION -->
     <nav id="mainNav" class="hidden">
       <button data-tab="playerTab">Player</button>
       <button data-tab="storyWeaverTab" id="swTabButton">Story Weaver</button>
     </nav>
 
     <main>
-      <!-- PLAYER TAB -->
       <section id="playerTab" class="tab hidden">
         <h2>Player Panel</h2>
 
-        <!-- PLAYER INFO -->
         <div id="playerInfo">
           <p><strong>Name:</strong> <span id="playerNameDisplay">—</span></p>
           <p><strong>Race:</strong> <span id="playerRaceDisplay">—</span></p>
@@ -106,7 +100,6 @@
           <p><strong>Level:</strong> <span id="levelDisplay">—</span></p>
         </div>
 
-        <!-- NEXUS BLOCK -->
         <section id="nexusSection" class="stat-block">
           <h3>Nexus</h3>
           <div class="nexus-display">
@@ -119,7 +112,6 @@
           </div>
         </section>
 
-        <!-- STRESS BLOCK -->
         <section id="stressSection" class="stat-block">
           <h3>Stress</h3>
           <div id="stressBar" class="stress-bar"></div>
@@ -130,44 +122,44 @@
           </div>
         </section>
 
-               <!-- DICE ROLLER -->
         <section id="diceRoller">
           <h3>🎲 Dice Roller</h3>
+
+          <label>
+            # Dice:
+            <input id="diceCountInput" type="number" min="1" max="20" value="1">
+          </label>
+
           <button class="die-btn" data-die="6">Roll D6</button>
           <button class="die-btn" data-die="10">Roll D10</button>
           <button class="die-btn" data-die="20">Roll D20</button>
           <div id="diceResults"></div>
         </section>
 
-        <!-- CLASS SKILLS -->
         <section id="classSkills" class="stat-block">
           <h3>Class Skills</h3>
           <p id="classSkillsHint" class="skills-hint">
-            Select a class above, then click a skill to roll 1d6 (odds = success), spend Nexus, and roll damage.
+            Select a class above, then click a skill to roll (odds = success), spend Nexus, roll damage.
           </p>
           <div id="skillsContainer"></div>
           <div id="skillResult" class="skill-result"></div>
         </section>
 
-        <!-- LEVEL CONTROLS -->
         <section id="levelControls">
           <h3>⬆️ Level Controls</h3>
           <button id="levelUpBtn">Level Up (3d6 HP)</button>
           <button id="levelDownBtn">Level Down (undo last)</button>
         </section>
 
-        <!-- PARTY LIST -->
         <section id="playersListSection">
           <h3>Party</h3>
           <ul id="playersList" class="player-list"></ul>
         </section>
       </section>
 
-      <!-- STORY WEAVER TAB -->
       <section id="storyWeaverTab" class="tab hidden">
         <h2>📜 Story Weaver</h2>
 
-        <!-- MAP -->
         <section>
           <h3>Map</h3>
           <div id="mapDisplay">No map selected.</div>
@@ -177,7 +169,6 @@
           </div>
         </section>
 
-        <!-- CONFLICT -->
         <section>
           <h3>Conflict Management</h3>
           <div id="conflictInfo">No active conflict.</div>

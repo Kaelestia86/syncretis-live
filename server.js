@@ -12,6 +12,14 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
+// -----------------------------------------------------------------------------
+// STATIC FILES (SERVE THE UI FROM Public/)
+// -----------------------------------------------------------------------------
+app.use(express.static(path.join(__dirname, "Public")));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "Public", "index.html"));
+});
 
 // -----------------------------------------------------------------------------
 // SESSION STATE
@@ -29,7 +37,6 @@ function send(ws, obj) {
 function broadcast(sessionId, obj) {
   const session = sessions[sessionId];
   if (!session) return;
-
   session.players.forEach((p) => send(p.ws, obj));
 }
 

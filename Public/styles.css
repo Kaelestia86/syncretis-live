@@ -1,64 +1,256 @@
-
+/* ==============================
+   Base Layout & Typography
+============================== */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #020617;
   color: #e5e7eb;
 }
+
 header {
   background: linear-gradient(90deg, #4b2c82, #0f766e);
   padding: 1rem 1.5rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
-h1 { margin: 0; font-size: 1.6rem; }
-.app { max-width: 1100px; margin: 0 auto; padding: 1rem; }
-#connectSection {
-  background: #0b1120;
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.hidden { display: none; }
+
+/* ==============================
+   Panels / Sections
+============================== */
+#connectSection,
+.tab,
+.stat-block {
+  background: #020617;
   border-radius: 0.75rem;
   padding: 1rem;
-  margin-bottom: 1rem;
+  border: 1px solid #1f2937;
   box-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
-.row { margin-bottom: 0.5rem; }
-.row label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9rem; }
-input[type="text"], input[type="number"], select {
-  background: #020617; border: 1px solid #374151; border-radius: 0.5rem;
-  padding: 0.35rem 0.6rem; color: #e5e7eb;
-}
-button {
-  background: #111827; color: #e5e7eb; border-radius: 999px; border: 1px solid #374151;
-  padding: 0.35rem 0.9rem; margin-right: 0.5rem; margin-top: 0.35rem; cursor: pointer;
-}
-button:hover { background: #1f2937; }
-nav { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-.hidden { display: none; }
-.tab {
-  background: #020617; border-radius: 0.75rem; padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-}
+
 .stat-block {
-  margin-top: 1rem; padding: 0.75rem; border-radius: 0.75rem;
-  background: #020617; border: 1px solid #1f2937;
+  margin-top: 1rem;
+  padding: 0.75rem;
 }
-.nexus-display { margin-bottom: 0.5rem; font-size: 1.1rem; }
+
+nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ==============================
+   Inputs
+============================== */
+.row { margin-bottom: 0.5rem; }
+
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  background: #020617;
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  color: #e5e7eb;
+}
+
+/* ==============================
+   Arcane Buttons (GLOBAL)
+============================== */
+button {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    rgba(25, 20, 45, 0.95),
+    rgba(15, 10, 30, 0.95)
+  );
+  color: #e5e7eb;
+
+  border-radius: 999px;
+  border: 1px solid rgba(147, 51, 234, 0.35);
+
+  padding: 0.4rem 1rem;
+  margin-right: 0.5rem;
+  margin-top: 0.35rem;
+
+  cursor: pointer;
+  letter-spacing: 0.02em;
+
+  box-shadow:
+    0 0 6px rgba(147, 51, 234, 0.25),
+    inset 0 0 8px rgba(147, 51, 234, 0.08);
+
+  animation: arcaneBreath 4.5s ease-in-out infinite;
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(
+    180deg,
+    rgba(45, 25, 85, 1),
+    rgba(20, 10, 45, 1)
+  );
+  box-shadow:
+    0 0 14px rgba(168, 85, 247, 0.6),
+    inset 0 0 14px rgba(168, 85, 247, 0.2);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow:
+    0 0 6px rgba(147, 51, 234, 0.3),
+    inset 0 0 16px rgba(147, 51, 234, 0.25);
+}
+
+button:disabled {
+  opacity: 0.4;
+  animation: none;
+  cursor: not-allowed;
+}
+
+/* Breathing animation */
+@keyframes arcaneBreath {
+  0% {
+    box-shadow:
+      0 0 6px rgba(147, 51, 234, 0.25),
+      inset 0 0 8px rgba(147, 51, 234, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 12px rgba(168, 85, 247, 0.45),
+      inset 0 0 12px rgba(168, 85, 247, 0.15);
+  }
+  100% {
+    box-shadow:
+      0 0 6px rgba(147, 51, 234, 0.25),
+      inset 0 0 8px rgba(147, 51, 234, 0.08);
+  }
+}
+
+/* ==============================
+   Player Info
+============================== */
+.nexus-display {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.player-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.player-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #1f2937;
+}
+
+/* ==============================
+   Stress Bar (0–10 Segments)
+============================== */
 .stress-bar {
-  height: 10px; border-radius: 999px;
-  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  min-height: 16px;
 }
-.player-list { list-style: none; padding-left: 0; }
-.player-list li { padding: 0.25rem 0; border-bottom: 1px solid #1f2937; }
+
+.stress-pip {
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.08);
+}
+
+/* Green (1–3) */
+.stress-pip.filled:nth-child(-n+3) {
+  background: rgba(34, 197, 94, 0.9);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+/* Yellow (4–7) */
+.stress-pip.filled:nth-child(n+4):nth-child(-n+7) {
+  background: rgba(234, 179, 8, 0.92);
+  border-color: rgba(234, 179, 8, 0.6);
+}
+
+/* Red (8–10) */
+.stress-pip.filled:nth-child(n+8) {
+  background: rgba(239, 68, 68, 0.92);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* ==============================
+   Dice & Skills
+============================== */
 #diceResults {
-  margin-top: 0.5rem; max-height: 150px; overflow-y: auto;
-  background: #020617; padding: 0.5rem; border-radius: 0.5rem; font-size: 0.9rem;
+  margin-top: 0.5rem;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #020617;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
 }
-.skills-hint { font-size: 0.85rem; color: #9ca3af; }
+
+.skills-hint {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
 #skillsContainer {
-  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
-#skillsContainer button { min-width: 160px; text-align: left; }
-#skillResult { margin-top: 0.5rem; font-size: 0.9rem; }
+
+#skillsContainer button {
+  min-width: 160px;
+  text-align: left;
+}
+
+#skillResult {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* ==============================
+   Map
+============================== */
 #mapDisplay {
-  margin-bottom: 0.5rem; min-height: 120px; background:#020617;
-  border-radius: 0.75rem; border: 1px solid #1f2937;
-  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 0.5rem;
+  min-height: 120px;
+  background: #020617;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

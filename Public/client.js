@@ -11,7 +11,6 @@ let currentPlayer = null;
 // -----------------------------------------------------------------------------
 // CLASS ABILITIES & SKILL HELPERS
 // -----------------------------------------------------------------------------
-
 const ABILITIES_BY_CLASS = {
   "Talons of Dragoon": [
     { id: "talons_basic", name: "Basic Swing", desc: "Standard melee weapon attack.", damage: "1d10", nexusCost: 0 },
@@ -88,80 +87,44 @@ const ABILITIES_BY_CLASS = {
   ],
 
   "Rhythm of Dragoon": [
-    {
-      id: "rhythm_basic_melee",
-      name: "Basic Swing",
-      desc: "Standard melee weapon attack.",
-      damage: "1d10",
-      nexusCost: 0
-    },
-    {
-      id: "rhythm_dissonant_chord",
-      name: "Dissonant Chord",
-      desc: "Soundwave attack that damages and disorients.",
-      damage: "3d6",
-      nexusCost: 10
-    },
-    {
-      id: "rhythm_euphoric_melody",
-      name: "Euphoric Melody",
-      desc: "Play a beautiful melody that inspires allies for 2 turns. Roll 1d20 for effectiveness.",
-      damage: "1d20",    // used as an 'effectiveness' roll by the roller
-      nexusCost: 10
-    },
-    {
-      id: "rhythm_crippling_strike",
-      name: "Crippling Strike",
-      desc: "A quick precise dagger attack that gives the ability to retreat up to 10 ft.",
-      damage: "2d6",
-      nexusCost: 10
-    },
-    {
-      id: "rhythm_blessing_of_syncretis",
-      name: "Blessing of Syncretis",
-      desc: "Sing a long harmonious note attuning with nature. Allies gain +2 to attack; roll 5d10 as a potency check.",
-      damage: "5d10",
-      nexusCost: 20
-    }
+    { id: "rhythm_basic_melee", name: "Basic Swing", desc: "Standard melee weapon attack.", damage: "1d10", nexusCost: 0 },
+    { id: "rhythm_dissonant_chord", name: "Dissonant Chord", desc: "Soundwave attack that damages and disorients.", damage: "3d6", nexusCost: 10 },
+    { id: "rhythm_euphoric_melody", name: "Euphoric Melody", desc: "Inspires allies for 2 turns. Roll 1d20 for effectiveness.", damage: "1d20", nexusCost: 10 },
+    { id: "rhythm_crippling_strike", name: "Crippling Strike", desc: "A quick precise dagger attack that gives the ability to retreat up to 10 ft.", damage: "2d6", nexusCost: 10 },
+    { id: "rhythm_blessing_of_syncretis", name: "Blessing of Syncretis", desc: "Allies gain +2 to attack; roll 5d10 as a potency check.", damage: "5d10", nexusCost: 20 }
   ]
 };
 
-
 // -----------------------------------------------------------------------------
-// ABILITY LOOKUP (SAFE, FUZZY BY CLASS NAME)
+// ABILITY LOOKUP (SAFE, FUZZY BY CLASS NAME) - FIXED TYPO BUGS
 // -----------------------------------------------------------------------------
 function getAbilitiesForClass(className) {
   if (!className) return [];
 
   // Exact key match first
-  if (typeof ABILITIES_BY_CLASS !== "undefined" && ABILITIES_BY_CLASS[className]) {
+  if (ABILITIES_BY_CLASS[className]) {
     return ABILITIES_BY_CLASS[className];
   }
 
-  if (!ABIlITIES_BY_CLASS) return [];
-
   const normalized = className.trim().toLowerCase();
-  let bestMatch = null;
 
   // Case-insensitive exact key match
-  for (const key of Object.keys(ABIlITIES_BY_CLASS)) {
+  for (const key of Object.keys(ABILITIES_BY_CLASS)) {
     if (key.toLowerCase() === normalized) {
-      return ABIlITIES_BY_CLASS[key];
+      return ABILITIES_BY_CLASS[key];
     }
   }
 
-  // "Contains" matching: e.g. "Tears of Dragoon" → "Tears"
-  for (const key of Object.keys(ABIlITIES_BY_CLASS)) {
+  // "Contains" matching
+  for (const key of Object.keys(ABILITIES_BY_CLASS)) {
     const keyNorm = key.toLowerCase();
     if (normalized.includes(keyNorm) || keyNorm.includes(normalized)) {
-      bestMatch = ABIlITIES_BY_CLASS[key];
-      break;
+      return ABILITIES_BY_CLASS[key];
     }
   }
 
-  return bestMatch || [];
+  return [];
 }
-
 
 // -----------------------------------------------------------------------------
 // DICE HELPERS
@@ -181,10 +144,10 @@ function rollDice(num, sides) {
   return { total, rolls };
 }
 
-// "2d6+1d4" style parsing – adjust to your formulas
+// "2d6+1d4" style parsing
 function rollDamageFormula(formula) {
   const clean = String(formula || "").trim();
-  if (!clean || clean === "0" || clean === "0d6" || clean === "0d0") {
+  if (!clean || clean === "0" || clean === "0d6" || clean === "0d0" || clean === "—") {
     return { total: 0, breakdown: "No damage dice." };
   }
 
@@ -206,12 +169,8 @@ function rollDamageFormula(formula) {
     breakdowns.push(`${count}d${sides}: [${rolls.join(", ")}] => ${subtotal}`);
   }
 
-  return {
-    total,
-    breakdown: breakdowns.join(" | ")
-  };
+  return { total, breakdown: breakdowns.join(" | ") };
 }
-
 
 // -----------------------------------------------------------------------------
 // WEBSOCKET + MESSAGE HANDLING
@@ -234,12 +193,11 @@ function connectWebSocket() {
     const type = msg.type;
 
     if (type === "sessionState") {
-      // Full snapshot when joining/rejoining
       sessionId = msg.sessionId;
-      playerId = msg.you.playerId;
+      playerId = msg.you?.playerId || msg.playerId;
 
       localStorage.setItem("sessionId", sessionId);
-      localStorage.setItem("playerId", playerId);
+      if (playerId) localStorage.setItem("playerId", playerId);
 
       const connectSection = document.getElementById("connectSection");
       const mainNav = document.getElementById("mainNav");
@@ -251,19 +209,15 @@ function connectWebSocket() {
       updatePlayerInfo(currentPlayer);
       renderSkillsForPlayer(currentPlayer);
 
-      if (Array.isArray(msg.players)) {
-        renderPlayersList(msg.players, playerId);
-      }
-      if (msg.map && msg.map.url) {
-        renderMap(msg.map.url);
-      }
-      if (msg.story) {
-        updateStory(msg.story);
-      }
+      if (Array.isArray(msg.players)) renderPlayersList(msg.players, playerId);
+      if (msg.map && msg.map.url) renderMap(msg.map.url);
+      if (msg.story) updateStory(msg.story);
+
+      // NEW: enemies support if server provides them in sessionState
+      if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
     }
 
     else if (type === "sessionJoined") {
-      // Initial confirmation; sessionState will follow
       sessionId = msg.sessionId;
       playerId = msg.playerId;
       localStorage.setItem("sessionId", sessionId);
@@ -276,9 +230,7 @@ function connectWebSocket() {
         updatePlayerInfo(currentPlayer);
         renderSkillsForPlayer(currentPlayer);
       }
-      if (Array.isArray(msg.players)) {
-        renderPlayersList(msg.players, playerId);
-      }
+      if (Array.isArray(msg.players)) renderPlayersList(msg.players, playerId);
     }
 
     else if (type === "playersList") {
@@ -290,17 +242,28 @@ function connectWebSocket() {
     }
 
     else if (type === "mapUpdate") {
-      if (msg.map && msg.map.url) {
-        renderMap(msg.map.url);
-      }
+      if (msg.map && msg.map.url) renderMap(msg.map.url);
     }
 
     else if (type === "storyUpdate") {
       updateStory(msg.story);
+
+      // NEW: some server builds also send enemies alongside story updates
+      if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
     }
 
     else if (type === "skillResult") {
       showSkillResult(msg);
+    }
+
+    // NEW: enemy state updates
+    else if (type === "enemyState") {
+      if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
+    }
+
+    // NEW: combat log messages
+    else if (type === "combatLog") {
+      appendCombatLog(msg.entry);
     }
   });
 
@@ -321,18 +284,17 @@ function sendMsg(obj) {
 // Kick off initial WS connection
 connectWebSocket();
 
-
 // -----------------------------------------------------------------------------
 // JOIN / REJOIN
 // -----------------------------------------------------------------------------
 const joinBtnEl = document.getElementById("joinBtn");
 if (joinBtnEl) {
   joinBtnEl.addEventListener("click", () => {
-    const rawId = document.getElementById("sessionIdInput").value.trim();
-    const name = document.getElementById("playerNameInput").value.trim();
-    const race = document.getElementById("raceSelect").value.trim();
-    const className = document.getElementById("classSelect").value.trim();
-    const isSw = document.getElementById("isSwCheckbox").checked;
+    const rawId = document.getElementById("sessionIdInput")?.value?.trim() || "";
+    const name = document.getElementById("playerNameInput")?.value?.trim() || "";
+    const race = document.getElementById("raceSelect")?.value?.trim() || "";
+    const className = document.getElementById("classSelect")?.value?.trim() || "";
+    const isSw = document.getElementById("isSwCheckbox")?.checked || false;
 
     if (!rawId || !name) {
       alert("Enter session ID and name.");
@@ -347,7 +309,7 @@ if (joinBtnEl) {
       playerName: name,
       role: isSw ? "storyWeaver" : "player",
       race,
-      className,
+      className
     });
   });
 }
@@ -363,35 +325,27 @@ if (rejoinBtnEl) {
       return;
     }
 
-    const normalizedId = savedId.toUpperCase();
-
     sendMsg({
       type: "rejoinSession",
-      sessionId: normalizedId,
-      playerId: savedPlayer,
+      sessionId: savedId.toUpperCase(),
+      playerId: savedPlayer
     });
   });
 }
-
 
 // -----------------------------------------------------------------------------
 // TABS
 // -----------------------------------------------------------------------------
 function showTab(tabId) {
-  document
-    .querySelectorAll(".tab")
-    .forEach((el) => el.classList.add("hidden"));
+  document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
 
   const tabEl = document.getElementById(tabId);
   if (tabEl) tabEl.classList.remove("hidden");
 
   const swBtn = document.getElementById("swTabButton");
   if (swBtn) {
-    if (tabId === "storyWeaverTab") {
-      swBtn.classList.add("active-tab");
-    } else {
-      swBtn.classList.remove("active-tab");
-    }
+    if (tabId === "storyWeaverTab") swBtn.classList.add("active-tab");
+    else swBtn.classList.remove("active-tab");
   }
 }
 
@@ -404,7 +358,6 @@ if (mainNavEl) {
     showTab(targetTab);
   });
 }
-
 
 // -----------------------------------------------------------------------------
 // MAP & STORY / CONFLICT
@@ -452,7 +405,7 @@ if (startConflictBtnEl) {
     sendMsg({
       type: "startConflict",
       sessionId,
-      name: name || "Unnamed Conflict",
+      name: name || "Unnamed Conflict"
     });
   });
 }
@@ -464,10 +417,25 @@ if (endConflictBtnEl) {
     sendMsg({ type: "endConflict", sessionId });
   });
 }
+// -----------------------------------------------------------------------------
+// STRESS BAR RENDERING (0–10)
+// -----------------------------------------------------------------------------
+function renderStressBar(value) {
+  const el = document.getElementById("stressBar");
+  if (!el) return;
 
+  const v = Math.max(0, Math.min(10, Number(value) || 0));
+  el.innerHTML = "";
+
+  for (let i = 1; i <= 10; i++) {
+    const pip = document.createElement("span");
+    pip.className = "stress-pip" + (i <= v ? " filled" : "");
+    el.appendChild(pip);
+  }
+}
 
 // -----------------------------------------------------------------------------
-// PLAYER STATS (NEXUS, STRESS, LEVEL)
+// PLAYER STATS (NEXUS, STRESS, LEVEL, HP MANAGEMENT)
 // -----------------------------------------------------------------------------
 function updatePlayerInfo(player) {
   if (!player) return;
@@ -489,10 +457,8 @@ function updatePlayerInfo(player) {
   if (lvlEl) lvlEl.textContent = player.level || 1;
   if (nexusVal) nexusVal.textContent = player.nexus ?? 40;
   if (maxNexusVal) maxNexusVal.textContent = player.maxNexus ?? 40;
-  if (stressBar) {
-    // If you want to do fancy CSS with --stress you can
-    stressBar.dataset.value = player.stress ?? 0;
-  }
+  if (stressBar) stressBar.dataset.value = player.stress ?? 0;
+  renderStressBar(player.stress ?? 0);
 }
 
 function syncPlayerUpdate() {
@@ -501,10 +467,11 @@ function syncPlayerUpdate() {
     type: "playerUpdate",
     sessionId,
     playerId,
-    player: currentPlayer,
+    player: currentPlayer
   });
 }
 
+// Called by inline onclick in index.html
 function changeNexus(delta) {
   if (!currentPlayer) return;
   const maxNexus = currentPlayer.maxNexus ?? 40;
@@ -523,14 +490,22 @@ function resetNexus() {
 }
 
 function changeStress(delta) {
+  console.log("changeStress fired:", delta, "currentPlayer:", currentPlayer);
+
   if (!currentPlayer) return;
+
   const maxStress = 10;
   let newVal = (currentPlayer.stress ?? 0) + delta;
   newVal = Math.max(0, Math.min(maxStress, newVal));
   currentPlayer.stress = newVal;
+
+  console.log("Stress now:", currentPlayer.stress);
+
   updatePlayerInfo(currentPlayer);
   syncPlayerUpdate();
 }
+
+
 
 function resetStress() {
   if (!currentPlayer) return;
@@ -539,30 +514,100 @@ function resetStress() {
   syncPlayerUpdate();
 }
 
-function levelUp() {
+// NEW: HP controls (safe even if you haven’t added buttons yet)
+function changeHp(delta) {
   if (!currentPlayer) return;
-  const { total: gained } = rollDice(3, 6);
-  currentPlayer.level = (currentPlayer.level || 1) + 1;
-  currentPlayer.maxHp = (currentPlayer.maxHp || 0) + gained;
-  currentPlayer.currentHp = currentPlayer.maxHp;
+  const maxHp = currentPlayer.maxHp ?? 0;
+  let newVal = (currentPlayer.currentHp ?? maxHp) + delta;
+  newVal = Math.max(0, Math.min(maxHp, newVal));
+  currentPlayer.currentHp = newVal;
   updatePlayerInfo(currentPlayer);
   syncPlayerUpdate();
-  alert(`You gained ${gained} HP (3d6).`);
+}
+
+function healToFull() {
+  if (!currentPlayer) return;
+  currentPlayer.currentHp = currentPlayer.maxHp ?? currentPlayer.currentHp ?? 0;
+  updatePlayerInfo(currentPlayer);
+  syncPlayerUpdate();
+}
+
+// Expose for inline onclick, if you add buttons later
+window.changeNexus = changeNexus;
+window.resetNexus = resetNexus;
+window.changeStress = changeStress;
+window.resetStress = resetStress;
+window.changeHp = changeHp;
+window.healToFull = healToFull;
+
+function levelUp() {
+  if (!currentPlayer) return;
+
+  // Make sure defaults exist
+  if (typeof currentPlayer.level !== "number") currentPlayer.level = 1;
+  if (typeof currentPlayer.maxHp !== "number") currentPlayer.maxHp = 10;
+  if (typeof currentPlayer.currentHp !== "number") currentPlayer.currentHp = currentPlayer.maxHp;
+
+  // Create a persistent undo stack
+  if (!Array.isArray(currentPlayer.levelHistory)) currentPlayer.levelHistory = [];
+
+  const roll = rollDice(3, 6);
+  const gained = roll.total;
+
+  currentPlayer.level += 1;
+  currentPlayer.maxHp += gained;
+  currentPlayer.currentHp = currentPlayer.maxHp;
+
+  // Store exactly what happened so Level Down can undo
+  currentPlayer.levelHistory.push({ hpGained: gained });
+
+  updatePlayerInfo(currentPlayer);
+  syncPlayerUpdate();
+
+  alert("Level up! You gained " + gained + " HP (3d6).");
 }
 
 function levelDown() {
-  alert("Level down undo not fully implemented yet.");
+  if (!currentPlayer) return;
+
+  const lvl = (typeof currentPlayer.level === "number") ? currentPlayer.level : 1;
+  if (lvl <= 1) {
+    alert("You are already level 1.");
+    return;
+  }
+
+  if (!Array.isArray(currentPlayer.levelHistory) || currentPlayer.levelHistory.length === 0) {
+    // Fallback: still allow level down, but we can't undo HP accurately
+    currentPlayer.level = Math.max(1, lvl - 1);
+    updatePlayerInfo(currentPlayer);
+    syncPlayerUpdate();
+    alert("Level down: no undo history found for HP, so only level was reduced.");
+    return;
+  }
+
+  const last = currentPlayer.levelHistory.pop();
+  const hpGained = Number(last?.hpGained || 0);
+
+  currentPlayer.level = Math.max(1, lvl - 1);
+
+  if (typeof currentPlayer.maxHp !== "number") currentPlayer.maxHp = 10;
+  currentPlayer.maxHp = Math.max(1, currentPlayer.maxHp - hpGained);
+
+  if (typeof currentPlayer.currentHp !== "number") currentPlayer.currentHp = currentPlayer.maxHp;
+  currentPlayer.currentHp = Math.min(currentPlayer.currentHp, currentPlayer.maxHp);
+
+  updatePlayerInfo(currentPlayer);
+  syncPlayerUpdate();
+
+  alert("Level down! Undid " + hpGained + " HP from the last level up.");
 }
+
 
 const levelUpBtn = document.getElementById("levelUpBtn");
-if (levelUpBtn) {
-  levelUpBtn.addEventListener("click", levelUp);
-}
-const levelDownBtn = document.getElementById("levelDownBtn");
-if (levelDownBtn) {
-  levelDownBtn.addEventListener("click", levelDown);
-}
+if (levelUpBtn) levelUpBtn.addEventListener("click", levelUp);
 
+const levelDownBtn = document.getElementById("levelDownBtn");
+if (levelDownBtn) levelDownBtn.addEventListener("click", levelDown);
 
 // -----------------------------------------------------------------------------
 // PARTY LIST
@@ -579,7 +624,6 @@ function renderPlayersList(players, myId) {
     ul.appendChild(li);
   });
 }
-
 
 // -----------------------------------------------------------------------------
 // DICE ROLLER (MULTI-DICE + AUTO-CLEAR)
@@ -598,13 +642,12 @@ document.querySelectorAll(".die-btn").forEach((btn) => {
       return;
     }
 
-    // Matches server.js in the final zip: sides + count
     sendMsg({
       type: "rollDice",
       sessionId,
       playerId,
       sides,
-      count,
+      count
     });
   });
 });
@@ -622,29 +665,21 @@ function showDiceResult(msg) {
     if (count === 1) {
       p.textContent = `${name} rolled a d${sides}: ${msg.rolls[0]}`;
     } else {
-      p.textContent = `${name} rolled ${count}d${sides}: [${msg.rolls.join(
-        ", "
-      )}] = ${msg.total}`;
+      p.textContent = `${name} rolled ${count}d${sides}: [${msg.rolls.join(", ")}] = ${msg.total}`;
     }
   } else {
-    // Fallback if server ever sends the old shape
     p.textContent = `${name} rolled d${sides}: ${msg.result}`;
   }
 
-  // Newest first
   div.prepend(p);
 
-  // Auto-remove line after 60 seconds
   setTimeout(() => {
-    if (p.parentNode) {
-      p.parentNode.removeChild(p);
-    }
+    if (p.parentNode) p.parentNode.removeChild(p);
   }, 60000);
 }
 
-
 // -----------------------------------------------------------------------------
-// SKILLS / ABILITIES
+// SKILLS / ABILITIES (FIXED HIT LOGIC: ODD HIT, EVEN MISS)
 // -----------------------------------------------------------------------------
 function renderSkillsForPlayer(player) {
   const container = document.getElementById("skillsContainer");
@@ -693,23 +728,23 @@ if (skillsContainerEl) {
     const abilities = getAbilitiesForClass(currentPlayer.className);
     const abilityId = btn.dataset.abilityId;
     const ability = abilities.find((a) => a.id === abilityId);
-    if (!ability) {
-      alert("Ability not found.");
-      return;
-    }
+    if (!ability) return alert("Ability not found.");
 
     if (!sessionId || !playerId) return;
 
+    // FIXED: odds hit (1/3/5), evens miss (2/4/6)
     const hitRoll = rollSingleDie(6);
-    const success = hitRoll >= 3;
+    const success = (hitRoll % 2) === 1;
 
     const nexusCost = ability.nexusCost || 0;
-    if (nexusCost > (currentPlayer.nexus ?? 0)) {
+
+    // Only require Nexus if the hit succeeds
+    if (success && nexusCost > (currentPlayer.nexus ?? 0)) {
       alert("Not enough Nexus to use this ability.");
       return;
     }
 
-    if (success) {
+    if (success && nexusCost > 0) {
       currentPlayer.nexus = (currentPlayer.nexus ?? 0) - nexusCost;
       updatePlayerInfo(currentPlayer);
       syncPlayerUpdate();
@@ -717,13 +752,15 @@ if (skillsContainerEl) {
 
     let totalDamage = 0;
     let breakdown = "";
+
     if (success && ability.damage && ability.damage !== "0d0") {
       const dmgRoll = rollDamageFormula(ability.damage);
       totalDamage = dmgRoll.total;
       breakdown = dmgRoll.breakdown;
+    } else if (!success) {
+      breakdown = `MISS (even roll).`;
     }
 
-    // Tell the server; it will broadcast `skillResult` to everyone
     sendMsg({
       type: "skillUse",
       sessionId,
@@ -735,7 +772,7 @@ if (skillsContainerEl) {
       totalDamage,
       breakdown,
       nexusCost,
-      remainingNexus: currentPlayer.nexus ?? 0,
+      remainingNexus: currentPlayer.nexus ?? 0
     });
   });
 }
@@ -752,13 +789,13 @@ function showSkillResult(msg) {
     totalDamage,
     breakdown,
     nexusCost,
-    remainingNexus,
+    remainingNexus
   } = msg;
 
-  const successText = success ? "SUCCESS" : "FAILURE";
+  const successText = success ? "HIT" : "MISS";
   const dmgText = success
     ? `Dealt ${totalDamage} damage. (${breakdown || "no breakdown"})`
-    : "No damage dealt.";
+    : `${breakdown || "No damage dealt."}`;
   const nexusText =
     nexusCost && nexusCost > 0
       ? `Spent ${nexusCost} Nexus (remaining: ${remainingNexus}).`
@@ -767,4 +804,139 @@ function showSkillResult(msg) {
   resultEl.textContent =
     `${playerName} uses ${abilityName}: ${successText}. ` +
     `Hit roll: ${hitRoll}. ${dmgText} ${nexusText}`;
+}
+
+// -----------------------------------------------------------------------------
+// ENEMIES (NEW UI RENDERING + REMOVE SUPPORT)
+// -----------------------------------------------------------------------------
+function renderEnemies(enemies) {
+  const panel = document.getElementById("enemyPanel");
+  if (!panel) return;
+
+  panel.innerHTML = "";
+
+  if (!Array.isArray(enemies) || enemies.length === 0) {
+    panel.textContent = "No enemies in this conflict.";
+    return;
+  }
+
+  enemies.forEach((enemy) => {
+    const def = window.ENEMY_DEFS?.[enemy.key];
+
+    const card = document.createElement("div");
+    card.className = "enemy-card";
+
+    const title = document.createElement("h3");
+    const hpText =
+      (enemy.hp != null && enemy.maxHp != null) ? `HP ${enemy.hp}/${enemy.maxHp}` : "HP —";
+    const nxText =
+      (enemy.nexus != null && enemy.maxNexus != null) ? `Nexus ${enemy.nexus}/${enemy.maxNexus}` : "Nexus —";
+    title.textContent = `${enemy.name || def?.name || enemy.key} — ${hpText} — ${nxText}`;
+    card.appendChild(title);
+
+    const controls = document.createElement("div");
+    controls.className = "enemy-controls";
+
+    const dmgBtn = document.createElement("button");
+    dmgBtn.textContent = "HP -5";
+    dmgBtn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: -5 });
+    });
+
+    const healBtn = document.createElement("button");
+    healBtn.textContent = "HP +5";
+    healBtn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: +5 });
+    });
+
+    const nexusDownBtn = document.createElement("button");
+    nexusDownBtn.textContent = "Nexus -5";
+    nexusDownBtn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, nexusDelta: -5 });
+    });
+
+    const nexusUpBtn = document.createElement("button");
+    nexusUpBtn.textContent = "Nexus +5";
+    nexusUpBtn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, nexusDelta: +5 });
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "💀 Remove";
+    removeBtn.className = "enemy-remove-btn";
+    removeBtn.addEventListener("click", () => {
+      if (!sessionId) return;
+      const ok = confirm(`Remove ${enemy.name || def?.name || enemy.key}? This cannot be undone.`);
+      if (!ok) return;
+      sendMsg({ type: "removeEnemy", sessionId, enemyInstanceId: enemy.instanceId });
+    });
+
+    controls.appendChild(dmgBtn);
+    controls.appendChild(healBtn);
+    controls.appendChild(nexusDownBtn);
+    controls.appendChild(nexusUpBtn);
+    controls.appendChild(removeBtn);
+    card.appendChild(controls);
+
+    // Enemy ability buttons (from Public/enemy_defs.js)
+    if (def?.abilities?.length) {
+      const abilitiesWrap = document.createElement("div");
+      abilitiesWrap.className = "enemy-abilities";
+
+      def.abilities.forEach((ab) => {
+        const btn = document.createElement("button");
+        btn.className = "enemy-ability-btn";
+        btn.textContent =
+          `${ab.name}` +
+          (ab.roll && ab.roll !== "—" ? ` (${ab.roll})` : "") +
+          (ab.cost ? ` [${ab.cost} NX]` : "");
+
+        btn.addEventListener("click", () => {
+          if (!sessionId) return;
+          sendMsg({
+            type: "enemyUseAbility",
+            sessionId,
+            enemyInstanceId: enemy.instanceId,
+            abilityId: ab.id
+          });
+        });
+
+        abilitiesWrap.appendChild(btn);
+      });
+
+      card.appendChild(abilitiesWrap);
+    } else {
+      const warn = document.createElement("div");
+      warn.textContent = "Enemy abilities not loaded (enemy_defs.js missing or key mismatch).";
+      card.appendChild(warn);
+    }
+
+    panel.appendChild(card);
+  });
+}
+
+// -----------------------------------------------------------------------------
+// COMBAT LOG (NEW)
+// -----------------------------------------------------------------------------
+function appendCombatLog(entry) {
+  const log = document.getElementById("combatLog");
+  if (!log) return;
+
+  const line = document.createElement("div");
+  if (!entry) {
+    line.textContent = "Combat update.";
+  } else if (entry.note) {
+    line.textContent = entry.note;
+  } else {
+    // fallback shape
+    line.textContent =
+      `${entry.sourceName || "Enemy"} used ${entry.abilityName || "Ability"}` +
+      (entry.breakdown ? `: ${entry.breakdown}` : "");
+  }
+
+  log.prepend(line);
 }

@@ -172,6 +172,26 @@
         <section>
           <h3>Conflict Management</h3>
           <div id="conflictInfo">No active conflict.</div>
+
+          <!-- ✅ NEW: Add Enemy Controls -->
+          <h4>Add Enemy</h4>
+          <div class="row">
+            <label>Enemy:
+              <select id="enemySelect">
+                <option value="">-- Select Enemy --</option>
+              </select>
+            </label>
+            <button id="addEnemyBtn">Add Enemy</button>
+          </div>
+
+          <!-- ✅ Enemies -->
+          <h4>Enemies</h4>
+          <div id="enemyPanel"></div>
+
+          <!-- ✅ Combat Log -->
+          <h4>Combat Log</h4>
+          <div id="combatLog"></div>
+
           <input type="text" id="conflictNameInput" placeholder="Conflict name..." />
           <button id="startConflictBtn">Start Conflict</button>
           <button id="endConflictBtn">End Conflict</button>
@@ -180,6 +200,38 @@
     </main>
   </div>
 
+  <!-- ✅ Load enemy defs BEFORE client.js -->
+  <script src="enemy_defs.js"></script>
   <script src="client.js"></script>
+
+  <!-- ✅ Small inline script to populate dropdown + wire button -->
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      const enemySelect = document.getElementById("enemySelect");
+      const addEnemyBtn = document.getElementById("addEnemyBtn");
+
+      // Populate enemy dropdown from window.ENEMY_DEFS
+      const defs = window.ENEMY_DEFS || {};
+      if (enemySelect) {
+        Object.keys(defs).forEach((key) => {
+          const opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = defs[key]?.name || key;
+          enemySelect.appendChild(opt);
+        });
+      }
+
+      // When clicked, emit a custom event that client.js can hook
+      if (addEnemyBtn) {
+        addEnemyBtn.addEventListener("click", () => {
+          const key = enemySelect ? enemySelect.value : "";
+          if (!key) return alert("Pick an enemy first.");
+
+          // Let client.js handle sessionId + sendMsg
+          window.dispatchEvent(new CustomEvent("ros:addEnemy", { detail: { enemyKey: key } }));
+        });
+      }
+    });
+  </script>
 </body>
 </html>

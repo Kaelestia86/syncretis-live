@@ -22,10 +22,10 @@ const PORT = process.env.PORT || 3000;
 // -----------------------------------------------------------------------------
 // STATIC FILES (SERVE THE UI FROM Public/)
 // -----------------------------------------------------------------------------
-app.use(express.static(path.join(__dirname, "Public")));
+app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "Public", "index.html"));
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // -----------------------------------------------------------------------------

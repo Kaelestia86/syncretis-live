@@ -1,5 +1,6 @@
 // public/enemy_defs.js (CLIENT SAFE - DISPLAY ONLY)
 window.ENEMY_DEFS = {
+
   stone_hopper: {
     key: "stone_hopper",
     name: "Stone Hopper",
@@ -9,6 +10,8 @@ window.ENEMY_DEFS = {
       { id: "rapid_bite", name: "Rapid Bite", roll: "3d6", cost: 10 }
     ]
   },
+
+
   sool_scale: {
     key: "sool_scale",
     name: "Sool Scale",
@@ -20,6 +23,8 @@ window.ENEMY_DEFS = {
       { id: "heated_skin", name: "Heated Skin", roll: "2d6", cost: 10 }
     ]
   },
+
+
   crest_claw: {
     key: "crest_claw",
     name: "Crest Claw",
@@ -30,6 +35,8 @@ window.ENEMY_DEFS = {
       { id: "smoke_bind_net", name: "Smoke-Bind Net", roll: "—", cost: 10 }
     ]
   },
+
+
   poison_claw: {
     key: "poison_claw",
     name: "Poison Claw",
@@ -40,6 +47,8 @@ window.ENEMY_DEFS = {
       { id: "poison_cloud", name: "Poison Cloud", roll: "—", cost: 10 }
     ]
   },
+
+
   soul_strainer: {
     key: "soul_strainer",
     name: "Soul Strainer",
@@ -50,6 +59,8 @@ window.ENEMY_DEFS = {
       { id: "kiss", name: "Kiss", roll: "4d6", cost: 10 }
     ]
   },
+
+
   vex_wraith: {
     key: "vex_wraith",
     name: "Vex-Wraith",
@@ -61,6 +72,8 @@ window.ENEMY_DEFS = {
       { id: "flurry_of_blows", name: "Flurry of Blows", roll: "3d10", cost: 10 }
     ]
   },
+
+
   umbralyx: {
     key: "umbralyx",
     name: "Umbralyx",
@@ -71,7 +84,25 @@ window.ENEMY_DEFS = {
       { id: "battle_cry", name: "Battle Cry", roll: "—", cost: 0 }
     ]
   },
-  lt_silas: {
+
+
+  umbralyx_sentry: {
+    key: "umbralyx_sentry",
+    name: "Umbralyx Sentry",
+    maxHp: 74,
+    maxNexus: 40,
+    abilities: [
+      { id: "bite", name: "Bite", roll: "1d6", cost: 0 },
+      { id: "greataxe_attack", name: "Great Axe Attack", roll: "2d10", cost: 10 },
+      { id: "frenzy_attack", name: "Frenzy Attack (Great Axe + Bite)", roll: "2d10+1d6", cost: 10 },
+      { id: "battle_cry", name: "Battle Cry (Stun 1 turn on 1d6)", roll: "—", cost: 10 },
+      { id: "bow_attack", name: "Bow Attack", roll: "1d6", cost: 10 },
+      { id: "volthraz_burst", name: "Volthraz Burst (Stun 1 turn on 1d6)", roll: "2d6", cost: 10 }
+    ]
+  },
+
+
+lt_silas: {
     key: "lt_silas",
     name: "Lt. Silas",
     abilities: [
@@ -81,15 +112,24 @@ window.ENEMY_DEFS = {
       { id: "battle_roar", name: "Battle Roar", roll: "—", cost: 0 }
     ]
   },
-  razor_beak: {
-    key: "razor_beak",
-    name: "Razor-Beak",
+
+  razor_beak_umbralyx: {
+    key: "razor_beak_umbralyx",
+    name: "Razor-Beak Umbralyx",
     abilities: [
-      { id: "peck", name: "Peck Attack", roll: "2d6", cost: 0 },
-      { id: "nexus_great_axe", name: "Nexus Great Axe Attack", roll: "1d10", cost: 10 },
-      { id: "frenzy", name: "Frenzy Attack", roll: "—", cost: 20 },
+      { id: "peck_attack", name: "Peck Attack", roll: "2d6", cost: 0 },
+      { id: "nexus_great_axe_attack", name: "Nexus Great Axe Attack", roll: "1d10", cost: 10 },
+      { id: "frenzy_attack", name: "Frenzy Attack", roll: "—", cost: 20 },
       { id: "battle_roar", name: "Battle Roar", roll: "—", cost: 10 },
       { id: "rampage", name: "Rampage", roll: "3d6", cost: 0 }
+    ]
+  },
+
+  crimson_nexus_conduit: {
+    key: "crimson_nexus_conduit",
+    name: "Crimson Nexus Conduit",
+    abilities: [
+      { id: "crimson_pull", name: "Crimson Pull", roll: "—", cost: 0 }
     ]
   }
 };

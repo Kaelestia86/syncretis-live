@@ -190,20 +190,20 @@ button:disabled {
 
 /* Green (1–3) */
 .stress-pip.filled:nth-child(-n+3) {
-  background: rgba(34, 197, 94, 0.9);
-  border-color: rgba(34, 197, 94, 0.55);
+  background: rgba(8, 151, 85, 0.9);
+  border-color: rgba(228, 233, 230, 0.55);
 }
 
 /* Yellow (4–7) */
 .stress-pip.filled:nth-child(n+4):nth-child(-n+7) {
-  background: rgba(234, 179, 8, 0.92);
+  background: rgba(231, 179, 21, 0.92);
   border-color: rgba(234, 179, 8, 0.6);
 }
 
 /* Red (8–10) */
 .stress-pip.filled:nth-child(n+8) {
-  background: rgba(239, 68, 68, 0.92);
-  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(167, 70, 180, 0.92);
+  border-color: rgba(116, 13, 129, 0.6);
 }
 
 /* ==============================
@@ -241,9 +241,7 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* ==============================
-   Map
-============================== */
+
 #mapDisplay {
   margin-bottom: 0.5rem;
   min-height: 120px;
@@ -253,4 +251,49 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+
+#mapWrap{
+  position: relative;
+  width: 100%;
+  overflow: auto;         
+}
+
+#mapStage{
+  position: relative;
+  transform-origin: 0 0;
+}
+
+#battleMap{
+  display: block;
+  width: 100%;
+  height: auto;            
+  object-fit: contain;
+}
+
+#mapOverlay{
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+/* ==============================
+   HP / Nexus / Stress Buttons
+============================== */
+
+.hp-buttons,
+.nexus-buttons,
+.stress-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 1rem;
+}
+.nexus-buttons,
+.stress-buttons,
+.hp-buttons{
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 1rem;
 }

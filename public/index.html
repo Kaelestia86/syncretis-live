@@ -97,29 +97,37 @@
           <p><strong>Race:</strong> <span id="playerRaceDisplay">—</span></p>
           <p><strong>Class:</strong> <span id="playerClassDisplay">—</span></p>
           <p><strong>HP:</strong> <span id="hpDisplay">—</span></p>
+<div class="hp-buttons">
+  <button data-hp-delta="-1">-1</button>
+  <button data-hp-delta="1">+1</button>
+  <button data-hp-delta="-5">-5</button>
+  <button data-hp-delta="5">+5</button>
+  <button onclick="healToFull()">Full</button>
+</div>
+
           <p><strong>Level:</strong> <span id="levelDisplay">—</span></p>
         </div>
 
         <section id="nexusSection" class="stat-block">
           <h3>Nexus</h3>
-          <div class="nexus-display">
-            <span id="nexusValue">40</span> / <span id="maxNexusValue">40</span>
-          </div>
           <div class="nexus-buttons">
-            <button onclick="changeNexus(+1)">+1</button>
-            <button onclick="changeNexus(-1)">-1</button>
-            <button onclick="resetNexus()">Reset</button>
-          </div>
+  <button data-nexus-delta="-1">-1</button>
+  <button data-nexus-delta="1">+1</button>
+  <button data-nexus-delta="-5">-5</button>
+  <button data-nexus-delta="5">+5</button>
+  <button onclick="resetNexus()">Reset</button>
+</div>
+
         </section>
 
         <section id="stressSection" class="stat-block">
           <h3>Stress</h3>
-          <div id="stressBar" class="stress-bar"></div>
           <div class="stress-buttons">
-            <button onclick="changeStress(+1)">+1</button>
-            <button onclick="changeStress(-1)">-1</button>
-            <button onclick="resetStress()">Reset</button>
-          </div>
+  <button data-stress-delta="-1">-1</button>
+  <button data-stress-delta="1">+1</button>
+  <button onclick="resetStress()">Reset</button>
+</div>
+
         </section>
 
         <section id="diceRoller">
@@ -161,13 +169,23 @@
         <h2>📜 Story Weaver</h2>
 
         <section>
-          <h3>Map</h3>
-          <div id="mapDisplay">No map selected.</div>
-          <div id="swMapControls">
-            <input type="text" id="mapUrlInput" placeholder="Paste map image URL..." />
-            <button id="setMapBtn">Set Map</button>
-          </div>
-        </section>
+  <h3>Map</h3>
+
+  <div id="mapDisplay">
+    <canvas id="mapCanvas" width="1100" height="650"></canvas>
+  </div>
+
+  <div id="swMapControls">
+    <input type="file" id="mapUpload" accept=".jpg,.jpeg,image/jpeg" />
+
+    <input type="text" id="mapUrlInput" placeholder="Paste map image URL..." />
+    <button id="setMapBtn">Set Map (URL)</button>
+
+    <button id="addEnemyTokenBtn">➕ Add Enemy Pip</button>
+    <button id="deleteSelectedTokenBtn">🗑️ Delete Selected</button>
+  </div>
+</section>
+
 
         <section>
           <h3>Conflict Management</h3>

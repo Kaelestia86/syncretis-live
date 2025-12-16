@@ -1,6 +1,7 @@
 // enemies.js (SERVER AUTHORITATIVE DATA)
 
 const ENEMIES = {
+
   stone_hopper: {
     key: "stone_hopper",
     name: "Stone Hopper",
@@ -12,6 +13,8 @@ const ENEMIES = {
       { id: "rapid_bite", name: "Rapid Bite", roll: "3d6", cost: 10 }
     ]
   },
+
+
 
   sool_scale: {
     key: "sool_scale",
@@ -27,6 +30,8 @@ const ENEMIES = {
     ]
   },
 
+
+
   crest_claw: {
     key: "crest_claw",
     name: "Crest Claw",
@@ -39,6 +44,8 @@ const ENEMIES = {
       { id: "smoke_bind_net", name: "Smoke-Bind Net", roll: "—", cost: 10 }
     ]
   },
+
+
 
   poison_claw: {
     key: "poison_claw",
@@ -53,6 +60,8 @@ const ENEMIES = {
     ]
   },
 
+
+
   soul_strainer: {
     key: "soul_strainer",
     name: "Soul Strainer",
@@ -65,6 +74,8 @@ const ENEMIES = {
       { id: "kiss", name: "Kiss", roll: "4d6", cost: 10 }
     ]
   },
+
+
 
   vex_wraith: {
     key: "vex_wraith",
@@ -80,6 +91,8 @@ const ENEMIES = {
     ]
   },
 
+
+
   umbralyx: {
     key: "umbralyx",
     name: "Umbralyx",
@@ -92,6 +105,25 @@ const ENEMIES = {
       { id: "battle_cry", name: "Battle Cry", roll: "—", cost: 0 }
     ]
   },
+
+
+
+
+  umbralyx_sentry: {
+    key: "umbralyx_sentry",
+    name: "Umbralyx Sentry",
+    maxHp: 74,
+    maxNexus: 40,
+    abilities: [
+      { id: "bite", name: "Bite", roll: "1d6", cost: 0 },
+      { id: "greataxe_attack", name: "Great Axe Attack", roll: "2d10", cost: 10 },
+      { id: "frenzy_attack", name: "Frenzy Attack (Great Axe + Bite)", roll: "2d10+1d6", cost: 10 },
+      { id: "battle_cry", name: "Battle Cry (Stun 1 turn on 1d6)", roll: "—", cost: 10 },
+      { id: "bow_attack", name: "Bow Attack", roll: "1d6", cost: 10 },
+      { id: "volthraz_burst", name: "Volthraz Burst (Stun 1 turn on 1d6)", roll: "2d6", cost: 10 }
+    ]
+  },
+
 
   lt_silas: {
     key: "lt_silas",
@@ -106,17 +138,27 @@ const ENEMIES = {
     ]
   },
 
-  razor_beak: {
-    key: "razor_beak",
-    name: "Razor-Beak",
-    maxHp: 85,
-    maxNexus: 45,
+  razor_beak_umbralyx: {
+    key: "razor_beak_umbralyx",
+    name: "Razor-Beak Umbralyx",
+    maxHp: 96,
+    maxNexus: 60,
     abilities: [
-      { id: "peck", name: "Peck Attack", roll: "2d6", cost: 0 },
-      { id: "nexus_great_axe", name: "Nexus Great Axe Attack", roll: "1d10", cost: 10 },
-      { id: "frenzy", name: "Frenzy Attack", roll: "—", cost: 20 },
+      { id: "peck_attack", name: "Peck Attack", roll: "2d6", cost: 0 },
+      { id: "nexus_great_axe_attack", name: "Nexus Great Axe Attack", roll: "1d10", cost: 10 },
+      { id: "frenzy_attack", name: "Frenzy Attack", roll: "—", cost: 20 },
       { id: "battle_roar", name: "Battle Roar", roll: "—", cost: 10 },
       { id: "rampage", name: "Rampage", roll: "3d6", cost: 0 }
+    ]
+  },
+
+  crimson_nexus_conduit: {
+    key: "crimson_nexus_conduit",
+    name: "Crimson Nexus Conduit",
+    maxHp: 150,
+    maxNexus: 9999,
+    abilities: [
+      { id: "crimson_pull", name: "Crimson Pull", roll: "—", cost: 0 }
     ]
   }
 };

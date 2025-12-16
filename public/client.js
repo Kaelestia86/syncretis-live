@@ -8,6 +8,28 @@ let sessionId = null;
 let playerId = null;
 let currentPlayer = null;
 
+// Map state (URL or DataURL) for canvas rendering
+let currentMapSrc = "";
+
+// Canvas map image + camera state
+let mapImage = null;
+let mapImageSrcLoaded = "";
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+
+// Token state (client-only for now)
+let mapTool = "none"; // "none" | "placeEnemy"
+let tokens = [];      // { id, type: "enemy"|"warden", x01, y01 }
+let selectedTokenId = null;
+
+// Drag state
+let isDraggingToken = false;
+let dragTokenId = null;
+let isPanning = false;
+let panStart = null;
+let spaceDown = false;
+
 // -----------------------------------------------------------------------------
 // CLASS ABILITIES & SKILL HELPERS
 // -----------------------------------------------------------------------------
@@ -96,26 +118,19 @@ const ABILITIES_BY_CLASS = {
 };
 
 // -----------------------------------------------------------------------------
-// ABILITY LOOKUP (SAFE, FUZZY BY CLASS NAME) - FIXED TYPO BUGS
+// ABILITY LOOKUP (SAFE, FUZZY BY CLASS NAME)
 // -----------------------------------------------------------------------------
 function getAbilitiesForClass(className) {
   if (!className) return [];
 
-  // Exact key match first
-  if (ABILITIES_BY_CLASS[className]) {
-    return ABILITIES_BY_CLASS[className];
-  }
+  if (ABILITIES_BY_CLASS[className]) return ABILITIES_BY_CLASS[className];
 
   const normalized = className.trim().toLowerCase();
 
-  // Case-insensitive exact key match
   for (const key of Object.keys(ABILITIES_BY_CLASS)) {
-    if (key.toLowerCase() === normalized) {
-      return ABILITIES_BY_CLASS[key];
-    }
+    if (key.toLowerCase() === normalized) return ABILITIES_BY_CLASS[key];
   }
 
-  // "Contains" matching
   for (const key of Object.keys(ABILITIES_BY_CLASS)) {
     const keyNorm = key.toLowerCase();
     if (normalized.includes(keyNorm) || keyNorm.includes(normalized)) {
@@ -144,7 +159,6 @@ function rollDice(num, sides) {
   return { total, rolls };
 }
 
-// "2d6+1d4" style parsing
 function rollDamageFormula(formula) {
   const clean = String(formula || "").trim();
   if (!clean || clean === "0" || clean === "0d6" || clean === "0d0" || clean === "—") {
@@ -210,10 +224,16 @@ function connectWebSocket() {
       renderSkillsForPlayer(currentPlayer);
 
       if (Array.isArray(msg.players)) renderPlayersList(msg.players, playerId);
-      if (msg.map && msg.map.url) renderMap(msg.map.url);
+
+      if (msg.map && msg.map.url) {
+        currentMapSrc = msg.map.url;
+        renderMap(currentMapSrc);
+      } else {
+        renderMap();
+      }
+
       if (msg.story) updateStory(msg.story);
 
-      // NEW: enemies support if server provides them in sessionState
       if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
     }
 
@@ -242,13 +262,14 @@ function connectWebSocket() {
     }
 
     else if (type === "mapUpdate") {
-      if (msg.map && msg.map.url) renderMap(msg.map.url);
+      if (msg.map && msg.map.url) {
+        currentMapSrc = msg.map.url;
+        renderMap(currentMapSrc);
+      }
     }
 
     else if (type === "storyUpdate") {
       updateStory(msg.story);
-
-      // NEW: some server builds also send enemies alongside story updates
       if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
     }
 
@@ -256,12 +277,10 @@ function connectWebSocket() {
       showSkillResult(msg);
     }
 
-    // NEW: enemy state updates
     else if (type === "enemyState") {
       if (Array.isArray(msg.enemies)) renderEnemies(msg.enemies);
     }
 
-    // NEW: combat log messages
     else if (type === "combatLog") {
       appendCombatLog(msg.entry);
     }
@@ -281,7 +300,6 @@ function sendMsg(obj) {
   socket.send(JSON.stringify(obj));
 }
 
-// Kick off initial WS connection
 connectWebSocket();
 
 // -----------------------------------------------------------------------------
@@ -360,7 +378,197 @@ if (mainNavEl) {
 }
 
 // -----------------------------------------------------------------------------
-// MAP & STORY / CONFLICT
+// MAP HELPERS (CONTAIN DRAW + COORDINATE CONVERSIONS)
+// -----------------------------------------------------------------------------
+function clamp01(n) {
+  return Math.max(0, Math.min(1, n));
+}
+
+function makeId() {
+  return `t_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function getContainRect(imgW, imgH, canvasW, canvasH) {
+  const scale = Math.min(canvasW / imgW, canvasH / imgH);
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+  const drawX = (canvasW - drawW) / 2;
+  const drawY = (canvasH - drawH) / 2;
+  return { x: drawX, y: drawY, w: drawW, h: drawH };
+}
+
+function canvasPointFromEvent(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  return { x, y };
+}
+
+function screenToWorld(pt) {
+  return {
+    x: (pt.x - panX) / zoom,
+    y: (pt.y - panY) / zoom
+  };
+}
+
+function worldToScreen(pt) {
+  return {
+    x: pt.x * zoom + panX,
+    y: pt.y * zoom + panY
+  };
+}
+
+function tokenWorldPosition(token, mapRect) {
+  const x = mapRect.x + token.x01 * mapRect.w;
+  const y = mapRect.y + token.y01 * mapRect.h;
+  return { x, y };
+}
+
+function findTokenAtWorld(worldPt, mapRect) {
+  // pick radius in world units (so zoom doesn't change selection feel)
+  const pickR = 14 / zoom;
+  let best = null;
+  let bestD2 = Infinity;
+
+  for (const t of tokens) {
+    const tp = tokenWorldPosition(t, mapRect);
+    const dx = tp.x - worldPt.x;
+    const dy = tp.y - worldPt.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= pickR * pickR && d2 < bestD2) {
+      best = t;
+      bestD2 = d2;
+    }
+  }
+  return best;
+}
+
+function drawToken(ctx, t, mapRect) {
+  const tp = tokenWorldPosition(t, mapRect);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(tp.x, tp.y, 10 / zoom, 0, Math.PI * 2);
+
+  // Enemy vs Warden visual differentiation
+  if (t.type === "warden") ctx.fillStyle = "#4a79d8"; // blue
+  else ctx.fillStyle = "#d84a4a"; // red
+
+  ctx.fill();
+
+  // outline
+  ctx.lineWidth = 2 / zoom;
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.stroke();
+
+  // selected highlight
+  if (t.id === selectedTokenId) {
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, 14 / zoom, 0, Math.PI * 2);
+    ctx.lineWidth = 3 / zoom;
+    ctx.strokeStyle = "rgba(255,215,0,0.95)";
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// -----------------------------------------------------------------------------
+// MAP RENDER (CANVAS) + CAMERA
+// -----------------------------------------------------------------------------
+function drawCanvasMap() {
+  const canvas = document.getElementById("mapCanvas");
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // background
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Apply camera
+  ctx.save();
+  ctx.translate(panX, panY);
+  ctx.scale(zoom, zoom);
+
+  const worldW = canvas.width;
+  const worldH = canvas.height;
+
+  if (!mapImage) {
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.font = "16px sans-serif";
+    ctx.fillText("No map selected.", 20 / zoom, 40 / zoom);
+    ctx.restore();
+    return;
+  }
+
+  const mapRect = getContainRect(mapImage.naturalWidth, mapImage.naturalHeight, worldW / zoom, worldH / zoom);
+  ctx.drawImage(mapImage, mapRect.x, mapRect.y, mapRect.w, mapRect.h);
+
+  // tokens
+  for (const t of tokens) drawToken(ctx, t, mapRect);
+
+  ctx.restore();
+
+  // tool hint (UI-only)
+  if (mapTool === "placeEnemy") {
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.font = "14px sans-serif";
+    ctx.fillText("Placing tokens: click to place (Shift=warden). Click token to select, drag to move.", 12, canvas.height - 14);
+  }
+}
+
+function resetCamera() {
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+}
+
+function renderMap(url) {
+  const src = (url && String(url).trim()) ? String(url).trim() : currentMapSrc;
+  if (src) currentMapSrc = src;
+
+  const canvas = document.getElementById("mapCanvas");
+  if (!canvas) return;
+
+  if (!src) {
+    mapImage = null;
+    mapImageSrcLoaded = "";
+    resetCamera();
+    drawCanvasMap();
+    return;
+  }
+
+  // If we already loaded this exact src, just redraw (fast, avoids disappearing)
+  if (mapImage && mapImageSrcLoaded === src) {
+    drawCanvasMap();
+    return;
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    mapImage = img;
+    mapImageSrcLoaded = src;
+    resetCamera();
+    drawCanvasMap();
+  };
+  img.onerror = () => {
+    console.error("Failed to load map image:", src);
+    mapImage = null;
+    mapImageSrcLoaded = "";
+    drawCanvasMap();
+  };
+  img.src = src;
+}
+
+// -----------------------------------------------------------------------------
+// MAP CONTROLS (SET URL + UPLOAD)
 // -----------------------------------------------------------------------------
 const setMapBtn = document.getElementById("setMapBtn");
 if (setMapBtn) {
@@ -368,22 +576,184 @@ if (setMapBtn) {
     const input = document.getElementById("mapUrlInput");
     const url = input ? input.value.trim() : "";
     if (!sessionId) return;
+
+    currentMapSrc = url;
     sendMsg({ type: "updateMap", sessionId, url });
   });
 }
 
-function renderMap(url) {
-  const div = document.getElementById("mapDisplay");
-  if (!div) return;
+const mapUpload = document.getElementById("mapUpload");
+if (mapUpload) {
+  mapUpload.addEventListener("change", () => {
+    const file = mapUpload.files?.[0];
+    if (!file) return;
 
-  if (!url) {
-    div.textContent = "No map selected.";
-    return;
-  }
+    if (!sessionId) {
+      alert("Join a session first.");
+      mapUpload.value = "";
+      return;
+    }
 
-  div.innerHTML = `<img src="${url}" alt="Map" style="max-width: 100%; border-radius: 0.75rem;" />`;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      currentMapSrc = dataUrl;
+      sendMsg({ type: "updateMap", sessionId, url: dataUrl });
+      mapUpload.value = "";
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
+// -----------------------------------------------------------------------------
+// MAP INTERACTION: ZOOM/PAN + TOKENS (MOVE/DELETE)
+// -----------------------------------------------------------------------------
+(function enableCanvasMapControls() {
+  const canvas = document.getElementById("mapCanvas");
+  if (!canvas) return;
+
+  // Space to pan (nice for trackpads)
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") spaceDown = true;
+  });
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space") spaceDown = false;
+  });
+
+  // Wheel zoom (zoom towards cursor)
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+
+    const pt = canvasPointFromEvent(canvas, e);
+    const before = screenToWorld(pt);
+
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const nextZoom = Math.max(0.5, Math.min(3, zoom * factor));
+    if (nextZoom === zoom) return;
+
+    zoom = nextZoom;
+
+    // Keep cursor anchored
+    const afterScreen = worldToScreen(before);
+    panX += (pt.x - afterScreen.x);
+    panY += (pt.y - afterScreen.y);
+
+    drawCanvasMap();
+  }, { passive: false });
+
+  // Pointer logic: select/drag tokens, or pan, or place tokens
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture?.(e.pointerId);
+
+    const pt = canvasPointFromEvent(canvas, e);
+    const world = screenToWorld(pt);
+
+    const mapRect = (mapImage)
+      ? getContainRect(mapImage.naturalWidth, mapImage.naturalHeight, canvas.width / zoom, canvas.height / zoom)
+      : null;
+
+    // Middle mouse OR space+left pans
+    const wantsPan = (e.button === 1) || (spaceDown && e.button === 0);
+    if (wantsPan) {
+      isPanning = true;
+      panStart = { x: pt.x, y: pt.y, panX, panY };
+      return;
+    }
+
+    // If we have a map, allow token selection/move
+    if (mapRect) {
+      const hit = findTokenAtWorld(world, mapRect);
+      if (hit) {
+        selectedTokenId = hit.id;
+        isDraggingToken = true;
+        dragTokenId = hit.id;
+        drawCanvasMap();
+        return;
+      }
+    }
+
+    // Otherwise, if in place mode, place new token
+    if (mapTool === "placeEnemy" && mapRect && mapImage) {
+      // only place if click is inside the map area (not letterbox)
+      if (world.x >= mapRect.x && world.x <= mapRect.x + mapRect.w &&
+          world.y >= mapRect.y && world.y <= mapRect.y + mapRect.h) {
+
+        const x01 = clamp01((world.x - mapRect.x) / mapRect.w);
+        const y01 = clamp01((world.y - mapRect.y) / mapRect.h);
+
+        const type = e.shiftKey ? "warden" : "enemy";
+        const t = { id: makeId(), type, x01, y01 };
+        tokens.push(t);
+        selectedTokenId = t.id;
+        drawCanvasMap();
+      }
+      return;
+    }
+
+    // Clicking empty space clears selection
+    selectedTokenId = null;
+    drawCanvasMap();
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    const pt = canvasPointFromEvent(canvas, e);
+
+    if (isPanning && panStart) {
+      panX = panStart.panX + (pt.x - panStart.x);
+      panY = panStart.panY + (pt.y - panStart.y);
+      drawCanvasMap();
+      return;
+    }
+
+    if (!isDraggingToken || !dragTokenId || !mapImage) return;
+
+    const world = screenToWorld(pt);
+    const mapRect = getContainRect(mapImage.naturalWidth, mapImage.naturalHeight, canvas.width / zoom, canvas.height / zoom);
+
+    const t = tokens.find(x => x.id === dragTokenId);
+    if (!t) return;
+
+    const x01 = clamp01((world.x - mapRect.x) / mapRect.w);
+    const y01 = clamp01((world.y - mapRect.y) / mapRect.h);
+    t.x01 = x01;
+    t.y01 = y01;
+
+    drawCanvasMap();
+  });
+
+  canvas.addEventListener("pointerup", () => {
+    isDraggingToken = false;
+    dragTokenId = null;
+    isPanning = false;
+    panStart = null;
+  });
+})();
+
+// Button: place enemy token mode
+const addEnemyTokenBtn = document.getElementById("addEnemyTokenBtn");
+if (addEnemyTokenBtn) {
+  addEnemyTokenBtn.addEventListener("click", () => {
+    mapTool = (mapTool === "placeEnemy") ? "none" : "placeEnemy";
+    drawCanvasMap();
+  });
+}
+
+// Button: delete selected token
+const deleteSelectedTokenBtn = document.getElementById("deleteSelectedTokenBtn");
+if (deleteSelectedTokenBtn) {
+  deleteSelectedTokenBtn.addEventListener("click", () => {
+    if (!selectedTokenId) return;
+
+    tokens = tokens.filter(t => t.id !== selectedTokenId);
+    selectedTokenId = null;
+
+    drawCanvasMap();
+  });
+}
+
+// -----------------------------------------------------------------------------
+// STORY / CONFLICT
+// -----------------------------------------------------------------------------
 function updateStory(story) {
   const conflictInfoDiv = document.getElementById("conflictInfo");
   if (!conflictInfoDiv) return;
@@ -417,6 +787,7 @@ if (endConflictBtnEl) {
     sendMsg({ type: "endConflict", sessionId });
   });
 }
+
 // -----------------------------------------------------------------------------
 // STRESS BAR RENDERING (0–10)
 // -----------------------------------------------------------------------------
@@ -471,7 +842,6 @@ function syncPlayerUpdate() {
   });
 }
 
-// Called by inline onclick in index.html
 function changeNexus(delta) {
   if (!currentPlayer) return;
   const maxNexus = currentPlayer.maxNexus ?? 40;
@@ -491,7 +861,6 @@ function resetNexus() {
 
 function changeStress(delta) {
   console.log("changeStress fired:", delta, "currentPlayer:", currentPlayer);
-
   if (!currentPlayer) return;
 
   const maxStress = 10;
@@ -505,8 +874,6 @@ function changeStress(delta) {
   syncPlayerUpdate();
 }
 
-
-
 function resetStress() {
   if (!currentPlayer) return;
   currentPlayer.stress = 0;
@@ -514,7 +881,6 @@ function resetStress() {
   syncPlayerUpdate();
 }
 
-// NEW: HP controls (safe even if you haven’t added buttons yet)
 function changeHp(delta) {
   if (!currentPlayer) return;
   const maxHp = currentPlayer.maxHp ?? 0;
@@ -532,7 +898,6 @@ function healToFull() {
   syncPlayerUpdate();
 }
 
-// Expose for inline onclick, if you add buttons later
 window.changeNexus = changeNexus;
 window.resetNexus = resetNexus;
 window.changeStress = changeStress;
@@ -540,15 +905,45 @@ window.resetStress = resetStress;
 window.changeHp = changeHp;
 window.healToFull = healToFull;
 
+// -----------------------------------------------------------------------------
+// QUICK DELTA BUTTONS (NO MORE JS EDITS LATER)
+// Add buttons like: <button data-hp-delta="-1">HP -1</button>
+// -----------------------------------------------------------------------------
+(function wireDeltaButtons() {
+  document.addEventListener("click", (e) => {
+    const hpBtn = e.target.closest("[data-hp-delta]");
+    if (hpBtn) {
+      const delta = parseInt(hpBtn.getAttribute("data-hp-delta"), 10);
+      if (!Number.isNaN(delta)) changeHp(delta);
+      return;
+    }
+
+    const nxBtn = e.target.closest("[data-nexus-delta]");
+    if (nxBtn) {
+      const delta = parseInt(nxBtn.getAttribute("data-nexus-delta"), 10);
+      if (!Number.isNaN(delta)) changeNexus(delta);
+      return;
+    }
+
+    const stBtn = e.target.closest("[data-stress-delta]");
+    if (stBtn) {
+      const delta = parseInt(stBtn.getAttribute("data-stress-delta"), 10);
+      if (!Number.isNaN(delta)) changeStress(delta);
+      return;
+    }
+  });
+})();
+
+// -----------------------------------------------------------------------------
+// LEVEL UP/DOWN
+// -----------------------------------------------------------------------------
 function levelUp() {
   if (!currentPlayer) return;
 
-  // Make sure defaults exist
   if (typeof currentPlayer.level !== "number") currentPlayer.level = 1;
   if (typeof currentPlayer.maxHp !== "number") currentPlayer.maxHp = 10;
   if (typeof currentPlayer.currentHp !== "number") currentPlayer.currentHp = currentPlayer.maxHp;
 
-  // Create a persistent undo stack
   if (!Array.isArray(currentPlayer.levelHistory)) currentPlayer.levelHistory = [];
 
   const roll = rollDice(3, 6);
@@ -558,7 +953,6 @@ function levelUp() {
   currentPlayer.maxHp += gained;
   currentPlayer.currentHp = currentPlayer.maxHp;
 
-  // Store exactly what happened so Level Down can undo
   currentPlayer.levelHistory.push({ hpGained: gained });
 
   updatePlayerInfo(currentPlayer);
@@ -577,7 +971,6 @@ function levelDown() {
   }
 
   if (!Array.isArray(currentPlayer.levelHistory) || currentPlayer.levelHistory.length === 0) {
-    // Fallback: still allow level down, but we can't undo HP accurately
     currentPlayer.level = Math.max(1, lvl - 1);
     updatePlayerInfo(currentPlayer);
     syncPlayerUpdate();
@@ -601,7 +994,6 @@ function levelDown() {
 
   alert("Level down! Undid " + hpGained + " HP from the last level up.");
 }
-
 
 const levelUpBtn = document.getElementById("levelUpBtn");
 if (levelUpBtn) levelUpBtn.addEventListener("click", levelUp);
@@ -679,7 +1071,7 @@ function showDiceResult(msg) {
 }
 
 // -----------------------------------------------------------------------------
-// SKILLS / ABILITIES (FIXED HIT LOGIC: ODD HIT, EVEN MISS)
+// SKILLS / ABILITIES (ODD HIT, EVEN MISS)
 // -----------------------------------------------------------------------------
 function renderSkillsForPlayer(player) {
   const container = document.getElementById("skillsContainer");
@@ -732,13 +1124,11 @@ if (skillsContainerEl) {
 
     if (!sessionId || !playerId) return;
 
-    // FIXED: odds hit (1/3/5), evens miss (2/4/6)
     const hitRoll = rollSingleDie(6);
     const success = (hitRoll % 2) === 1;
 
     const nexusCost = ability.nexusCost || 0;
 
-    // Only require Nexus if the hit succeeds
     if (success && nexusCost > (currentPlayer.nexus ?? 0)) {
       alert("Not enough Nexus to use this ability.");
       return;
@@ -807,10 +1197,7 @@ function showSkillResult(msg) {
 }
 
 // -----------------------------------------------------------------------------
-// ENEMIES (NEW UI RENDERING + REMOVE SUPPORT)
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// ENEMY: ADD ENEMY BUTTON (from index.html inline script)
+// ENEMIES (UI RENDERING + REMOVE SUPPORT)
 // -----------------------------------------------------------------------------
 window.addEventListener("ros:addEnemy", (ev) => {
   const enemyKey = ev?.detail?.enemyKey;
@@ -856,6 +1243,21 @@ function renderEnemies(enemies) {
     const controls = document.createElement("div");
     controls.className = "enemy-controls";
 
+    // ✅ NEW: HP +/-1
+    const dmg1Btn = document.createElement("button");
+    dmg1Btn.textContent = "HP -1";
+    dmg1Btn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: -1 });
+    });
+
+    const heal1Btn = document.createElement("button");
+    heal1Btn.textContent = "HP +1";
+    heal1Btn.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: +1 });
+    });
+
     const dmgBtn = document.createElement("button");
     dmgBtn.textContent = "HP -5";
     dmgBtn.addEventListener("click", () => {
@@ -894,6 +1296,8 @@ function renderEnemies(enemies) {
       sendMsg({ type: "removeEnemy", sessionId, enemyInstanceId: enemy.instanceId });
     });
 
+    controls.appendChild(dmg1Btn);
+    controls.appendChild(heal1Btn);
     controls.appendChild(dmgBtn);
     controls.appendChild(healBtn);
     controls.appendChild(nexusDownBtn);
@@ -901,7 +1305,6 @@ function renderEnemies(enemies) {
     controls.appendChild(removeBtn);
     card.appendChild(controls);
 
-    // Enemy ability buttons (from Public/enemy_defs.js)
     if (def?.abilities?.length) {
       const abilitiesWrap = document.createElement("div");
       abilitiesWrap.className = "enemy-abilities";
@@ -939,7 +1342,7 @@ function renderEnemies(enemies) {
 }
 
 // -----------------------------------------------------------------------------
-// COMBAT LOG (NEW)
+// COMBAT LOG
 // -----------------------------------------------------------------------------
 function appendCombatLog(entry) {
   const log = document.getElementById("combatLog");
@@ -951,7 +1354,6 @@ function appendCombatLog(entry) {
   } else if (entry.note) {
     line.textContent = entry.note;
   } else {
-    // fallback shape
     line.textContent =
       `${entry.sourceName || "Enemy"} used ${entry.abilityName || "Ability"}` +
       (entry.breakdown ? `: ${entry.breakdown}` : "");
@@ -959,3 +1361,8 @@ function appendCombatLog(entry) {
 
   log.prepend(line);
 }
+
+// -----------------------------------------------------------------------------
+// Initial map draw (in case sessionState hasn't arrived yet)
+// -----------------------------------------------------------------------------
+renderMap();

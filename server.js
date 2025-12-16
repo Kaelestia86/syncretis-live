@@ -93,15 +93,17 @@ function clamp(n, min, max) {
 
 function ensureSession(sid) {
   if (!sessions[sid]) {
-    sessions[sid] = { players: [], story: {}, map: {}, enemies: [] };
+    sessions[sid] = { players: [], story: {}, map: {}, enemies: [], tokens: {} };
   }
   const s = sessions[sid];
   if (!Array.isArray(s.players)) s.players = [];
   if (!Array.isArray(s.enemies)) s.enemies = [];
   if (!s.story) s.story = {};
   if (!s.map) s.map = {};
+  if (!s.tokens) s.tokens = {}; // ✅ important for sessions created before tokens existed
   return s;
 }
+
 
 function stripWS(player) {
   const clone = { ...player };

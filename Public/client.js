@@ -809,6 +809,25 @@ function showSkillResult(msg) {
 // -----------------------------------------------------------------------------
 // ENEMIES (NEW UI RENDERING + REMOVE SUPPORT)
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// ENEMY: ADD ENEMY BUTTON (from index.html inline script)
+// -----------------------------------------------------------------------------
+window.addEventListener("ros:addEnemy", (ev) => {
+  const enemyKey = ev?.detail?.enemyKey;
+  if (!enemyKey) return;
+
+  if (!sessionId) {
+    alert("Join a session first.");
+    return;
+  }
+
+  sendMsg({
+    type: "addEnemy",
+    sessionId,
+    enemyKey
+  });
+});
+
 function renderEnemies(enemies) {
   const panel = document.getElementById("enemyPanel");
   if (!panel) return;

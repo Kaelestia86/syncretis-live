@@ -12,6 +12,7 @@
       <h1>Realms of Syncretis – Live Session</h1>
     </header>
 
+    <!-- ================= CONNECT ================= -->
     <section id="connectSection">
       <h2>Connect</h2>
 
@@ -66,7 +67,6 @@
             <optgroup label="Other / Custom">
               <option value="Custom Warden">Custom Warden</option>
             </optgroup>
-
           </select>
         </label>
       </div>
@@ -83,53 +83,88 @@
       <div id="connectStatus"></div>
     </section>
 
+    <!-- ================= NAV ================= -->
     <nav id="mainNav" class="hidden">
       <button data-tab="playerTab">Player</button>
       <button data-tab="storyWeaverTab" id="swTabButton">Story Weaver</button>
     </nav>
 
     <main>
+      <!-- ================= PLAYER TAB ================= -->
       <section id="playerTab" class="tab hidden">
         <h2>Player Panel</h2>
 
+        <!-- ===== PLAYER INFO ===== -->
         <div id="playerInfo">
-          <p><strong>Name:</strong> <span id="playerNameDisplay">—</span></p>
-          <p><strong>Race:</strong> <span id="playerRaceDisplay">—</span></p>
-          <p><strong>Class:</strong> <span id="playerClassDisplay">—</span></p>
-          <p><strong>HP:</strong> <span id="hpDisplay">—</span></p>
-<div class="hp-buttons">
-  <button data-hp-delta="-1">-1</button>
-  <button data-hp-delta="1">+1</button>
-  <button data-hp-delta="-5">-5</button>
-  <button data-hp-delta="5">+5</button>
-  <button onclick="healToFull()">Full</button>
-</div>
+          <p><strong>Name:</strong> <span id="playerNameDisplay">-</span></p>
+          <p><strong>Race:</strong> <span id="playerRaceDisplay">-</span></p>
+          <p><strong>Class:</strong> <span id="playerClassDisplay">-</span></p>
 
-          <p><strong>Level:</strong> <span id="levelDisplay">—</span></p>
+          <!-- HP -->
+          <div class="stat-row">
+            <p><strong>HP:</strong> <span id="hpDisplay">0 / 0</span></p>
+            <div class="meter" aria-label="HP bar">
+              <div id="hpFill" class="meter-fill hp"></div>
+            </div>
+          </div>
+
+          <div class="hp-buttons">
+            <button data-hp-delta="-1">-1</button>
+            <button data-hp-delta="1">+1</button>
+            <button data-hp-delta="-5">-5</button>
+            <button data-hp-delta="5">+5</button>
+            <button onclick="healToFull()">Full</button>
+          </div>
+
+          <!-- LEVEL -->
+          <p><strong>Level:</strong> <span id="levelDisplay">1</span></p>
+
+          <!-- LEVEL CONTROLS (✔ CORRECT LOCATION) -->
+          <section id="levelControls" class="stat-block">
+            <h3>⬆️ Level Controls</h3>
+            <div class="level-buttons">
+              <button id="levelUpBtn">Level Up (3d6 HP)</button>
+              <button id="levelDownBtn">Level Down (undo last)</button>
+            </div>
+          </section>
         </div>
 
+        <!-- ===== NEXUS ===== -->
         <section id="nexusSection" class="stat-block">
           <h3>Nexus</h3>
-          <div class="nexus-buttons">
-  <button data-nexus-delta="-1">-1</button>
-  <button data-nexus-delta="1">+1</button>
-  <button data-nexus-delta="-5">-5</button>
-  <button data-nexus-delta="5">+5</button>
-  <button onclick="resetNexus()">Reset</button>
-</div>
 
+          <div class="nexus-buttons">
+            <button data-nexus-delta="-1">-1</button>
+            <button data-nexus-delta="1">+1</button>
+            <button data-nexus-delta="-5">-5</button>
+            <button data-nexus-delta="5">+5</button>
+            <button onclick="resetNexus()">Reset</button>
+          </div>
+
+          <div class="stat-row">
+            <div class="nexus-display">
+              <strong>Nexus:</strong>
+              <span id="nexusValue">0</span> / <span id="maxNexusValue">0</span>
+            </div>
+
+            <div class="meter" aria-label="Nexus bar">
+              <div id="nexusFill" class="meter-fill nexus"></div>
+            </div>
+          </div>
         </section>
 
+        <!-- ===== STRESS ===== -->
         <section id="stressSection" class="stat-block">
           <h3>Stress</h3>
+          <div id="stressBar" class="stress-bar" aria-label="Stress bar"></div>
           <div class="stress-buttons">
-  <button data-stress-delta="-1">-1</button>
-  <button data-stress-delta="1">+1</button>
-  <button onclick="resetStress()">Reset</button>
-</div>
-
+            <button data-stress-delta="-1">-1</button>
+            <button data-stress-delta="1">+1</button>
+            <button onclick="resetStress()">Reset</button>
+          </div>
         </section>
 
+        <!-- ===== DICE ===== -->
         <section id="diceRoller">
           <h3>🎲 Dice Roller</h3>
 
@@ -141,72 +176,64 @@
           <button class="die-btn" data-die="6">Roll D6</button>
           <button class="die-btn" data-die="10">Roll D10</button>
           <button class="die-btn" data-die="20">Roll D20</button>
+
           <div id="diceResults"></div>
         </section>
 
+        <!-- ===== SKILLS ===== -->
         <section id="classSkills" class="stat-block">
           <h3>Class Skills</h3>
           <p id="classSkillsHint" class="skills-hint">
-            Select a class above, then click a skill to roll (odds = success), spend Nexus, roll damage.
+            Select a class above, then click a skill to roll, spend Nexus, and deal damage.
           </p>
           <div id="skillsContainer"></div>
           <div id="skillResult" class="skill-result"></div>
         </section>
 
-        <section id="levelControls">
-          <h3>⬆️ Level Controls</h3>
-          <button id="levelUpBtn">Level Up (3d6 HP)</button>
-          <button id="levelDownBtn">Level Down (undo last)</button>
-        </section>
-
+        <!-- ===== PARTY ===== -->
         <section id="playersListSection">
           <h3>Party</h3>
           <ul id="playersList" class="player-list"></ul>
         </section>
       </section>
 
+      <!-- ================= STORY WEAVER TAB ================= -->
       <section id="storyWeaverTab" class="tab hidden">
         <h2>📜 Story Weaver</h2>
 
         <section>
-  <h3>Map</h3>
+          <h3>Map</h3>
+          <div id="mapDisplay">
+            <canvas id="mapCanvas" width="1100" height="650"></canvas>
+          </div>
 
-  <div id="mapDisplay">
-    <canvas id="mapCanvas" width="1100" height="650"></canvas>
-  </div>
-
-  <div id="swMapControls">
-    <input type="file" id="mapUpload" accept=".jpg,.jpeg,image/jpeg" />
-
-    <input type="text" id="mapUrlInput" placeholder="Paste map image URL..." />
-    <button id="setMapBtn">Set Map (URL)</button>
-
-    <button id="addEnemyTokenBtn">➕ Add Enemy Pip</button>
-    <button id="deleteSelectedTokenBtn">🗑️ Delete Selected</button>
-  </div>
-</section>
-
+          <div id="swMapControls">
+            <input type="file" id="mapUpload" accept=".jpg,.jpeg,image/jpeg" />
+            <input type="text" id="mapUrlInput" placeholder="Paste map image URL..." />
+            <button id="setMapBtn">Set Map (URL)</button>
+            <button id="addEnemyTokenBtn">➕ Add Enemy Pip</button>
+            <button id="deleteSelectedTokenBtn">🗑️ Delete Selected</button>
+          </div>
+        </section>
 
         <section>
           <h3>Conflict Management</h3>
           <div id="conflictInfo">No active conflict.</div>
 
-          <!-- ✅ NEW: Add Enemy Controls -->
           <h4>Add Enemy</h4>
-          <div class="row">
-            <label>Enemy:
-              <select id="enemySelect">
-                <option value="">-- Select Enemy --</option>
-              </select>
-            </label>
-            <button id="addEnemyBtn">Add Enemy</button>
-          </div>
+<div class="row">
+  <label>Enemy:
+    <select id="enemySelect"></select>
+  </label>
+  <button id="addEnemyBtn">Add Enemy</button>
+</div>
 
-          <!-- ✅ Enemies -->
-          <h4>Enemies</h4>
-          <div id="enemyPanel"></div>
+<h4>Monster Index</h4>
+<div id="monsterIndex" class="monster-index"></div>
 
-          <!-- ✅ Combat Log -->
+<h4>Enemies</h4>
+<div id="enemyPanel"></div>
+
           <h4>Combat Log</h4>
           <div id="combatLog"></div>
 
@@ -218,38 +245,7 @@
     </main>
   </div>
 
-  <!-- ✅ Load enemy defs BEFORE client.js -->
   <script src="enemy_defs.js"></script>
   <script src="client.js"></script>
-
-  <!-- ✅ Small inline script to populate dropdown + wire button -->
-  <script>
-    window.addEventListener("DOMContentLoaded", () => {
-      const enemySelect = document.getElementById("enemySelect");
-      const addEnemyBtn = document.getElementById("addEnemyBtn");
-
-      // Populate enemy dropdown from window.ENEMY_DEFS
-      const defs = window.ENEMY_DEFS || {};
-      if (enemySelect) {
-        Object.keys(defs).forEach((key) => {
-          const opt = document.createElement("option");
-          opt.value = key;
-          opt.textContent = defs[key]?.name || key;
-          enemySelect.appendChild(opt);
-        });
-      }
-
-      // When clicked, emit a custom event that client.js can hook
-      if (addEnemyBtn) {
-        addEnemyBtn.addEventListener("click", () => {
-          const key = enemySelect ? enemySelect.value : "";
-          if (!key) return alert("Pick an enemy first.");
-
-          // Let client.js handle sessionId + sendMsg
-          window.dispatchEvent(new CustomEvent("ros:addEnemy", { detail: { enemyKey: key } }));
-        });
-      }
-    });
-  </script>
 </body>
 </html>

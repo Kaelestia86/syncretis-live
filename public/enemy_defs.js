@@ -97,7 +97,7 @@ window.ENEMY_DEFS = {
       { id: "frenzy_attack", name: "Frenzy Attack (Great Axe + Bite)", roll: "2d10+1d6", cost: 10 },
       { id: "battle_cry", name: "Battle Cry (Stun 1 turn on 1d6)", roll: "—", cost: 10 },
       { id: "bow_attack", name: "Bow Attack", roll: "1d6", cost: 10 },
-      { id: "volthraz_burst", name: "Volthraz Burst (Stun 1 turn on 1d6)", roll: "2d6", cost: 10 }
+      { id: "Volthrax_burst", name: "Volthrax Burst (Stun 1 turn on 1d6)", roll: "2d6", cost: 10 }
     ]
   },
 

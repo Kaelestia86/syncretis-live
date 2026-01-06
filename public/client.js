@@ -20,8 +20,12 @@ let panY = 0;
 
 // Token state (client-only for now)
 let mapTool = "none"; // "none" | "placeEnemy"
-let tokens = [];      // { id, type: "enemy"|"warden", x01, y01 }
+let tokens = [];      // { id, type: "enemy"|"warden", x01, y01, enemyInstanceId?: string }
 let selectedTokenId = null;
+
+// When placing a token, link it to this enemy instance (if set)
+let pendingEnemyInstanceId = null;
+
 
 // Drag state
 let isDraggingToken = false;
@@ -302,6 +306,135 @@ function sendMsg(obj) {
 
 connectWebSocket();
 
+window.addEventListener("DOMContentLoaded", () => {
+  renderEnemySelect();
+  renderMonsterIndex();
+});
+
+function renderEnemySelect() {
+  const sel = document.getElementById("enemySelect");
+  if (!sel) return;
+
+  const defs = window.ENEMY_DEFS || {};
+  const keys = Object.keys(defs);
+
+  // Always reset
+  sel.innerHTML = "";
+
+  // Default placeholder option
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = keys.length ? "-- Select Enemy --" : "No enemies loaded";
+  sel.appendChild(placeholder);
+
+  if (!keys.length) return;
+
+  keys.sort((a, b) => {
+    const an = (defs[a]?.name || a).toLowerCase();
+    const bn = (defs[b]?.name || b).toLowerCase();
+    return an.localeCompare(bn);
+  });
+
+  for (const key of keys) {
+    const def = defs[key] || {};
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = `${def.name || key} (${key})`;
+    sel.appendChild(opt);
+  }
+}
+function renderMonsterIndex() {
+  // IMPORTANT: this must match the id you added in index.html
+  // (I’m assuming you created: <div id="monsterIndex"></div>)
+  const host = document.getElementById("monsterIndex");
+  if (!host) return;
+
+  const defs = window.ENEMY_DEFS || {};
+  const keys = Object.keys(defs);
+
+  host.innerHTML = "";
+
+  if (!keys.length) {
+    host.innerHTML = `<div style="opacity:.8">No monsters loaded (enemy_defs.js missing or empty).</div>`;
+    return;
+  }
+
+  // Sort by display name
+  keys.sort((a, b) => {
+    const an = (defs[a]?.name || a).toLowerCase();
+    const bn = (defs[b]?.name || b).toLowerCase();
+    return an.localeCompare(bn);
+  });
+
+  // Build cards
+  for (const key of keys) {
+    const def = defs[key] || {};
+    const name = def.name || key;
+
+    const card = document.createElement("details");
+    card.className = "monster-card";
+    card.open = false;
+
+    const summary = document.createElement("summary");
+    summary.className = "monster-card__summary";
+
+    const left = document.createElement("div");
+    left.className = "monster-card__title";
+    left.innerHTML = `<strong>${escapeHtml(name)}</strong> <span class="monster-card__key">(${escapeHtml(key)})</span>`;
+
+    const right = document.createElement("div");
+    right.className = "monster-card__actions";
+
+    const spawnBtn = document.createElement("button");
+    spawnBtn.type = "button";
+    spawnBtn.className = "monster-spawn-btn";
+    spawnBtn.textContent = "Spawn";
+
+    // This uses your existing add-enemy pathway:
+    spawnBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.dispatchEvent(new CustomEvent("ros:addEnemy", { detail: { enemyKey: key } }));
+    });
+
+    right.appendChild(spawnBtn);
+    summary.appendChild(left);
+    summary.appendChild(right);
+
+    const body = document.createElement("div");
+    body.className = "monster-card__body";
+
+    const desc = def.desc || def.description || "";
+    const hp = def.hp ?? def.maxHp ?? "";
+    const nexus = def.nexus ?? def.maxNexus ?? "";
+    const stress = def.stress ?? "";
+
+    body.innerHTML = `
+      ${desc ? `<div class="monster-card__desc">${escapeHtml(desc)}</div>` : ""}
+
+      <div class="monster-card__meta">
+        ${hp !== "" ? `<div><strong>HP</strong>: ${escapeHtml(String(hp))}</div>` : ""}
+        ${nexus !== "" ? `<div><strong>Nexus</strong>: ${escapeHtml(String(nexus))}</div>` : ""}
+        ${stress !== "" ? `<div><strong>Stress</strong>: ${escapeHtml(String(stress))}</div>` : ""}
+      </div>
+    `;
+
+    card.appendChild(summary);
+    card.appendChild(body);
+    host.appendChild(card);
+  }
+}
+
+// Tiny safety helper so monster text can’t break your HTML
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 // -----------------------------------------------------------------------------
 // JOIN / REJOIN
 // -----------------------------------------------------------------------------
@@ -387,6 +520,32 @@ function clamp01(n) {
 function makeId() {
   return `t_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
+function highlightEnemyCard(enemyInstanceId, opts = {}) {
+
+  // Clear existing highlights
+  document
+    .querySelectorAll(".enemy-card.highlighted")
+    .forEach(el => el.classList.remove("highlighted"));
+
+  if (!enemyInstanceId) return;
+
+  const card = document.querySelector(
+    `.enemy-card[data-enemy-instance-id="${enemyInstanceId}"]`
+  );
+  if (!card) return;
+
+  card.classList.add("highlighted");
+  card.open = true;
+
+ const shouldScroll = opts.scroll !== false;
+
+if (shouldScroll) {
+  card.scrollIntoView({
+    behavior: "smooth",
+    block: "nearest"
+  });
+}
+}
 
 function getContainRect(imgW, imgH, canvasW, canvasH) {
   const scale = Math.min(canvasW / imgW, canvasH / imgH);
@@ -443,6 +602,37 @@ function findTokenAtWorld(worldPt, mapRect) {
     }
   }
   return best;
+}
+function focusEnemyToken(enemyInstanceId) {
+  if (!enemyInstanceId) return;
+
+  const canvas = document.getElementById("mapCanvas");
+  if (!canvas || !mapImage) return;
+
+  // Find the first enemy token linked to this enemy instance
+  const t = tokens.find(tok => tok.type === "enemy" && tok.enemyInstanceId === enemyInstanceId);
+  if (!t) return;
+
+  // Compute map rect in WORLD space for current zoom
+  const mapRect = getContainRect(
+    mapImage.naturalWidth,
+    mapImage.naturalHeight,
+    canvas.width / zoom,
+    canvas.height / zoom
+  );
+
+  // Token world position
+  const tp = tokenWorldPosition(t, mapRect);
+
+  // Center token on screen
+  const centerScreenX = canvas.width / 2;
+  const centerScreenY = canvas.height / 2;
+
+  panX = centerScreenX - (tp.x * zoom);
+  panY = centerScreenY - (tp.y * zoom);
+
+  selectedTokenId = t.id;
+  drawCanvasMap();
 }
 
 function drawToken(ctx, t, mapRect) {
@@ -665,6 +855,10 @@ if (mapUpload) {
       const hit = findTokenAtWorld(world, mapRect);
       if (hit) {
         selectedTokenId = hit.id;
+
+        if (hit.type === "enemy") highlightEnemyCard(hit.enemyInstanceId, { scroll: false });
+
+
         isDraggingToken = true;
         dragTokenId = hit.id;
         drawCanvasMap();
@@ -682,9 +876,18 @@ if (mapUpload) {
         const y01 = clamp01((world.y - mapRect.y) / mapRect.h);
 
         const type = e.shiftKey ? "warden" : "enemy";
-        const t = { id: makeId(), type, x01, y01 };
+        const t = {
+       id: makeId(),
+  type,
+  x01,
+  y01,
+  enemyInstanceId: type === "enemy" ? pendingEnemyInstanceId : null
+};
+
         tokens.push(t);
-        selectedTokenId = t.id;
+pendingEnemyInstanceId = null;
+selectedTokenId = t.id;
+
         drawCanvasMap();
       }
       return;
@@ -787,6 +990,22 @@ if (endConflictBtnEl) {
     sendMsg({ type: "endConflict", sessionId });
   });
 }
+// Add Enemy button (Conflict Management)
+const addEnemyBtnEl = document.getElementById("addEnemyBtn");
+if (addEnemyBtnEl) {
+  addEnemyBtnEl.addEventListener("click", () => {
+    const sel = document.getElementById("enemySelect");
+    const enemyKey = sel ? sel.value : "";
+
+    if (!enemyKey) {
+      alert("Pick an enemy first.");
+      return;
+    }
+
+    // Use your existing add-enemy pathway (already listens for this)
+    window.dispatchEvent(new CustomEvent("ros:addEnemy", { detail: { enemyKey } }));
+  });
+}
 
 // -----------------------------------------------------------------------------
 // STRESS BAR RENDERING (0–10)
@@ -805,10 +1024,37 @@ function renderStressBar(value) {
   }
 }
 
+function setMeterFill(fillEl, current, max) {
+  if (!fillEl) return;
+
+  const c = Number(current) || 0;
+  const m = Math.max(1, Number(max) || 1);
+  const pct = Math.max(0, Math.min(100, (c / m) * 100));
+
+  fillEl.style.width = pct + "%";
+}
+
+function renderEnemyStressBar(hostEl, value) {
+  if (!hostEl) return;
+
+  const v = Math.max(0, Math.min(10, Number(value) || 0));
+  hostEl.innerHTML = "";
+
+  for (let i = 1; i <= 10; i++) {
+    const pip = document.createElement("span");
+    pip.className = "stress-pip" + (i <= v ? " filled" : "");
+    hostEl.appendChild(pip);
+  }
+}
+
+
 // -----------------------------------------------------------------------------
 // PLAYER STATS (NEXUS, STRESS, LEVEL, HP MANAGEMENT)
 // -----------------------------------------------------------------------------
 function updatePlayerInfo(player) {
+  const hpFill = document.getElementById("hpFill");
+  const nexusFill = document.getElementById("nexusFill");
+
   if (!player) return;
   currentPlayer = player;
 
@@ -819,17 +1065,25 @@ function updatePlayerInfo(player) {
   const lvlEl = document.getElementById("levelDisplay");
   const nexusVal = document.getElementById("nexusValue");
   const maxNexusVal = document.getElementById("maxNexusValue");
-  const stressBar = document.getElementById("stressBar");
 
-  if (nameEl) nameEl.textContent = player.name || "—";
-  if (raceEl) raceEl.textContent = player.race || "—";
-  if (classEl) classEl.textContent = player.className || "—";
+  if (nameEl) nameEl.textContent = player.name || "-";
+  if (raceEl) raceEl.textContent = player.race || "-";
+  if (classEl) classEl.textContent = player.className || "-";
   if (hpEl) hpEl.textContent = `${player.currentHp} / ${player.maxHp}`;
   if (lvlEl) lvlEl.textContent = player.level || 1;
-  if (nexusVal) nexusVal.textContent = player.nexus ?? 40;
+  if (nexusVal) nexusVal.textContent = player.nexus ?? player.maxNexus ?? 40;
   if (maxNexusVal) maxNexusVal.textContent = player.maxNexus ?? 40;
-  if (stressBar) stressBar.dataset.value = player.stress ?? 0;
+
+  // Stress pips
   renderStressBar(player.stress ?? 0);
+
+  // HP & Nexus bars
+  setMeterFill(hpFill, player.currentHp, player.maxHp);
+  setMeterFill(
+    nexusFill,
+    player.nexus ?? player.maxNexus ?? 40,
+    player.maxNexus ?? 40
+  );
 }
 
 function syncPlayerUpdate() {
@@ -1000,6 +1254,149 @@ if (levelUpBtn) levelUpBtn.addEventListener("click", levelUp);
 
 const levelDownBtn = document.getElementById("levelDownBtn");
 if (levelDownBtn) levelDownBtn.addEventListener("click", levelDown);
+
+
+// -----------------------------------------------------------------------------
+// ENEMY LEVEL UP/DOWN (Story Weaver)
+// - Mirrors the player level system (3d6 HP on level up, undo last on down)
+// - Best-effort sync to server via enemyAdjust (hpDelta/maxHpDelta/levelDelta if supported)
+// - Also keeps a local override so the Story Weaver UI remains stable even if the server
+//   does not yet persist these extra fields.
+// -----------------------------------------------------------------------------
+const enemyOverrides = new Map(); // key: enemyInstanceId -> override object
+
+function getEnemyOverride(instanceId) {
+  if (!instanceId) return null;
+  return enemyOverrides.get(instanceId) || null;
+}
+
+function setEnemyOverride(instanceId, patch) {
+  if (!instanceId) return;
+  const prev = enemyOverrides.get(instanceId) || {};
+  enemyOverrides.set(instanceId, { ...prev, ...patch });
+}
+
+function applyEnemyOverrides(enemy) {
+  if (!enemy || !enemy.instanceId) return enemy;
+  const ov = getEnemyOverride(enemy.instanceId);
+  if (!ov) return enemy;
+  return { ...enemy, ...ov };
+}
+
+function enemyLevelUp(enemy) {
+  if (!enemy || !enemy.instanceId) return;
+
+  const merged = applyEnemyOverrides(enemy);
+
+  const level = (typeof merged.level === "number") ? merged.level : 1;
+  const maxHp = (typeof merged.maxHp === "number")
+    ? merged.maxHp
+    : (typeof merged.hp === "number" ? merged.hp : 10);
+
+  const history = Array.isArray(merged.levelHistory) ? [...merged.levelHistory] : [];
+
+  const roll = rollDice(3, 6);
+  const gained = roll.total;
+
+  const nextLevel = level + 1;
+  const nextMaxHp = maxHp + gained;
+
+  history.push({ hpGained: gained });
+
+  // Local override so SW sees it immediately
+  setEnemyOverride(merged.instanceId, {
+    level: nextLevel,
+    maxHp: nextMaxHp,
+    hp: nextMaxHp, // heal to full on level up
+    levelHistory: history
+  });
+
+  // Best-effort server sync (safe if server ignores unknown fields)
+  if (sessionId) {
+    sendMsg({
+      type: "enemyAdjust",
+      sessionId,
+      enemyInstanceId: merged.instanceId,
+      hpDelta: gained,
+      maxHpDelta: gained,
+      levelDelta: +1,
+      setHpToMax: true,
+      levelHistoryAppend: { hpGained: gained }
+    });
+  }
+
+  renderEnemies(lastEnemiesState || []);
+  alert(`${merged.name || window.ENEMY_DEFS?.[merged.key]?.name || "Enemy"} leveled up! +${gained} HP (3d6).`);
+}
+
+function enemyLevelDown(enemy) {
+  if (!enemy || !enemy.instanceId) return;
+
+  const merged = applyEnemyOverrides(enemy);
+
+  const level = (typeof merged.level === "number") ? merged.level : 1;
+  if (level <= 1) {
+    alert("Enemy is already level 1.");
+    return;
+  }
+
+  const maxHp = (typeof merged.maxHp === "number")
+    ? merged.maxHp
+    : (typeof merged.hp === "number" ? merged.hp : 10);
+
+  const history = Array.isArray(merged.levelHistory) ? [...merged.levelHistory] : [];
+
+  if (history.length === 0) {
+    const nextLevel = Math.max(1, level - 1);
+
+    setEnemyOverride(merged.instanceId, { level: nextLevel });
+
+    if (sessionId) {
+      sendMsg({
+        type: "enemyAdjust",
+        sessionId,
+        enemyInstanceId: merged.instanceId,
+        levelDelta: -1
+      });
+    }
+
+    renderEnemies(lastEnemiesState || []);
+    alert("Level down: no undo history found for HP, so only level was reduced.");
+    return;
+  }
+
+  const last = history.pop();
+  const hpGained = Number(last?.hpGained || 0);
+
+  const nextLevel = Math.max(1, level - 1);
+  const nextMaxHp = Math.max(1, maxHp - hpGained);
+
+  const currentHp = (typeof merged.hp === "number") ? merged.hp : nextMaxHp;
+  const nextHp = Math.min(currentHp, nextMaxHp);
+
+  setEnemyOverride(merged.instanceId, {
+    level: nextLevel,
+    maxHp: nextMaxHp,
+    hp: nextHp,
+    levelHistory: history
+  });
+
+  if (sessionId) {
+    sendMsg({
+      type: "enemyAdjust",
+      sessionId,
+      enemyInstanceId: merged.instanceId,
+      hpDelta: (nextHp - currentHp),
+      maxHpDelta: -hpGained,
+      levelDelta: -1,
+      setHp: nextHp,
+      levelHistoryPop: true
+    });
+  }
+
+  renderEnemies(lastEnemiesState || []);
+  alert(`Level down! Undid ${hpGained} HP from the last level up.`);
+}
 
 // -----------------------------------------------------------------------------
 // PARTY LIST
@@ -1199,6 +1596,8 @@ function showSkillResult(msg) {
 // -----------------------------------------------------------------------------
 // ENEMIES (UI RENDERING + REMOVE SUPPORT)
 // -----------------------------------------------------------------------------
+let lastEnemiesState = [];
+
 window.addEventListener("ros:addEnemy", (ev) => {
   const enemyKey = ev?.detail?.enemyKey;
   if (!enemyKey) return;
@@ -1219,6 +1618,9 @@ function renderEnemies(enemies) {
   const panel = document.getElementById("enemyPanel");
   if (!panel) return;
 
+  // Keep the most recent enemy list so local overrides can re-render instantly
+  lastEnemiesState = Array.isArray(enemies) ? enemies : [];
+
   panel.innerHTML = "";
 
   if (!Array.isArray(enemies) || enemies.length === 0) {
@@ -1227,119 +1629,227 @@ function renderEnemies(enemies) {
   }
 
   enemies.forEach((enemy) => {
-    const def = window.ENEMY_DEFS?.[enemy.key];
+    const enemyView = applyEnemyOverrides(enemy);
 
-    const card = document.createElement("div");
-    card.className = "enemy-card";
+    // Default fields so UI doesn't crash
+    if (typeof enemyView.level !== "number") enemyView.level = 1;
+    if (!Array.isArray(enemyView.levelHistory)) enemyView.levelHistory = [];
+    if (typeof enemyView.maxHp !== "number") enemyView.maxHp = (typeof enemyView.hp === "number" ? enemyView.hp : 10);
 
-    const title = document.createElement("h3");
-    const hpText =
-      (enemy.hp != null && enemy.maxHp != null) ? `HP ${enemy.hp}/${enemy.maxHp}` : "HP —";
-    const nxText =
-      (enemy.nexus != null && enemy.maxNexus != null) ? `Nexus ${enemy.nexus}/${enemy.maxNexus}` : "Nexus —";
-    title.textContent = `${enemy.name || def?.name || enemy.key} — ${hpText} — ${nxText}`;
-    card.appendChild(title);
+    const def = window.ENEMY_DEFS?.[enemyView.key];
+    const displayName = enemyView.name || def?.name || enemyView.key;
 
+     const card = document.createElement("details");
+card.className = "enemy-card";
+card.open = true; 
+card.dataset.enemyInstanceId = enemyView.instanceId;
+
+const summary = document.createElement("summary");
+summary.className = "enemy-card__summary";
+
+const title = document.createElement("h3");
+title.textContent = displayName;
+const focusBtn = document.createElement("button");
+focusBtn.type = "button";
+focusBtn.className = "enemy-focus-btn";
+focusBtn.textContent = "Focus";
+focusBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation(); // prevents collapsing the <details>
+  focusEnemyToken(enemyView.instanceId);
+});
+
+title.style.cursor = "pointer";
+title.addEventListener("click", (e) => {
+  e.stopPropagation(); // don't toggle collapse
+  pendingEnemyInstanceId = enemyView.instanceId;
+});
+
+summary.appendChild(title);
+summary.appendChild(focusBtn);
+card.appendChild(summary);
+
+
+    // --- HP METER ---
+    const hpRow = document.createElement("div");
+    hpRow.className = "stat-row";
+    const hpCurrent = Number(enemyView.hp ?? 0);
+    const hpMax = Number(enemyView.maxHp ?? 1);
+
+    hpRow.innerHTML = `
+      <p><strong>HP:</strong> <span>${hpCurrent} / ${hpMax}</span></p>
+      <div class="meter" aria-label="Enemy HP bar">
+        <div class="meter-fill hp"></div>
+      </div>
+    `;
+    card.appendChild(hpRow);
+
+    // fill HP
+    const hpFill = hpRow.querySelector(".meter-fill.hp");
+    setMeterFill(hpFill, hpCurrent, hpMax);
+
+    // --- NEXUS METER ---
+    const nxRow = document.createElement("div");
+    nxRow.className = "stat-row";
+    const nxCurrent = Number(enemyView.nexus ?? 0);
+    const nxMax = Number(enemyView.maxNexus ?? 1);
+
+    nxRow.innerHTML = `
+      <p><strong>Nexus:</strong> <span>${nxCurrent} / ${nxMax}</span></p>
+      <div class="meter" aria-label="Enemy Nexus bar">
+        <div class="meter-fill nexus"></div>
+      </div>
+    `;
+    card.appendChild(nxRow);
+
+    // fill Nexus
+    const nxFill = nxRow.querySelector(".meter-fill.nexus");
+    setMeterFill(nxFill, nxCurrent, nxMax);
+
+    // --- STRESS BAR ---
+    const stressWrap = document.createElement("div");
+    stressWrap.className = "stat-row";
+    stressWrap.innerHTML = `<p><strong>Stress:</strong> <span>${Number(enemyView.stress ?? 0)}</span></p>`;
+    const stressBar = document.createElement("div");
+    stressBar.className = "stress-bar";
+    stressBar.setAttribute("aria-label", "Enemy Stress bar");
+    stressWrap.appendChild(stressBar);
+    card.appendChild(stressWrap);
+
+    renderEnemyStressBar(stressBar, enemyView.stress ?? 0);
+
+    // --- LEVEL DISPLAY ---
+    const lvlRow = document.createElement("div");
+    lvlRow.className = "stat-row";
+    lvlRow.innerHTML = `<p><strong>Level:</strong> <span>${enemyView.level || 1}</span></p>`;
+    card.appendChild(lvlRow);
+
+
+    // --- CONTROLS (HP / NEXUS / STRESS) ---
     const controls = document.createElement("div");
     controls.className = "enemy-controls";
 
-    // ✅ NEW: HP +/-1
-    const dmg1Btn = document.createElement("button");
-    dmg1Btn.textContent = "HP -1";
-    dmg1Btn.addEventListener("click", () => {
+    // HP buttons
+    const hpMinus1 = document.createElement("button");
+    hpMinus1.textContent = "HP -1";
+    hpMinus1.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: -1 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, hpDelta: -1 });
     });
 
-    const heal1Btn = document.createElement("button");
-    heal1Btn.textContent = "HP +1";
-    heal1Btn.addEventListener("click", () => {
+    const hpPlus1 = document.createElement("button");
+    hpPlus1.textContent = "HP +1";
+    hpPlus1.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: +1 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, hpDelta: +1 });
     });
 
-    const dmgBtn = document.createElement("button");
-    dmgBtn.textContent = "HP -5";
-    dmgBtn.addEventListener("click", () => {
+    const hpMinus5 = document.createElement("button");
+    hpMinus5.textContent = "HP -5";
+    hpMinus5.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: -5 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, hpDelta: -5 });
     });
 
-    const healBtn = document.createElement("button");
-    healBtn.textContent = "HP +5";
-    healBtn.addEventListener("click", () => {
+    const hpPlus5 = document.createElement("button");
+    hpPlus5.textContent = "HP +5";
+    hpPlus5.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, hpDelta: +5 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, hpDelta: +5 });
     });
 
-    const nexusDownBtn = document.createElement("button");
-    nexusDownBtn.textContent = "Nexus -5";
-    nexusDownBtn.addEventListener("click", () => {
+    // Nexus buttons
+    const nxMinus1 = document.createElement("button");
+    nxMinus1.textContent = "Nexus -1";
+    nxMinus1.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, nexusDelta: -5 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, nexusDelta: -1 });
     });
 
-    const nexusUpBtn = document.createElement("button");
-    nexusUpBtn.textContent = "Nexus +5";
-    nexusUpBtn.addEventListener("click", () => {
+    const nxPlus1 = document.createElement("button");
+    nxPlus1.textContent = "Nexus +1";
+    nxPlus1.addEventListener("click", () => {
       if (!sessionId) return;
-      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemy.instanceId, nexusDelta: +5 });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, nexusDelta: +1 });
     });
 
-    const removeBtn = document.createElement("button");
-    removeBtn.textContent = "💀 Remove";
-    removeBtn.className = "enemy-remove-btn";
-    removeBtn.addEventListener("click", () => {
+    const nxMinus5 = document.createElement("button");
+    nxMinus5.textContent = "Nexus -5";
+    nxMinus5.addEventListener("click", () => {
       if (!sessionId) return;
-      const ok = confirm(`Remove ${enemy.name || def?.name || enemy.key}? This cannot be undone.`);
-      if (!ok) return;
-      sendMsg({ type: "removeEnemy", sessionId, enemyInstanceId: enemy.instanceId });
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, nexusDelta: -5 });
     });
 
-    controls.appendChild(dmg1Btn);
-    controls.appendChild(heal1Btn);
-    controls.appendChild(dmgBtn);
-    controls.appendChild(healBtn);
-    controls.appendChild(nexusDownBtn);
-    controls.appendChild(nexusUpBtn);
-    controls.appendChild(removeBtn);
+    const nxPlus5 = document.createElement("button");
+    nxPlus5.textContent = "Nexus +5";
+    nxPlus5.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, nexusDelta: +5 });
+    });
+
+    // Stress buttons
+    const stMinus1 = document.createElement("button");
+    stMinus1.textContent = "Stress -1";
+    stMinus1.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, stressDelta: -1 });
+    });
+
+    const stPlus1 = document.createElement("button");
+    stPlus1.textContent = "Stress +1";
+    stPlus1.addEventListener("click", () => {
+      if (!sessionId) return;
+      sendMsg({ type: "enemyAdjust", sessionId, enemyInstanceId: enemyView.instanceId, stressDelta: +1 });
+    });
+
+    // Add buttons to the controls row
+    controls.appendChild(hpMinus1);
+    controls.appendChild(hpPlus1);
+    controls.appendChild(hpMinus5);
+    controls.appendChild(hpPlus5);
+
+    controls.appendChild(nxMinus1);
+    controls.appendChild(nxPlus1);
+    controls.appendChild(nxMinus5);
+    controls.appendChild(nxPlus5);
+
+    controls.appendChild(stMinus1);
+    controls.appendChild(stPlus1);
+
+    // Level buttons (same idea as player controls)
+    const lvlUpBtn = document.createElement("button");
+    lvlUpBtn.textContent = "⬆ Level Up (3d6 HP)";
+    lvlUpBtn.addEventListener("click", () => enemyLevelUp(enemyView));
+
+    const lvlDownBtn = document.createElement("button");
+    lvlDownBtn.textContent = "⬇ Level Down (undo last)";
+    lvlDownBtn.addEventListener("click", () => enemyLevelDown(enemyView));
+
+    controls.appendChild(lvlUpBtn);
+    controls.appendChild(lvlDownBtn);
+
+const removeBtn = document.createElement("button");
+removeBtn.type = "button";
+removeBtn.textContent = "Remove";
+removeBtn.addEventListener("click", () => {
+  if (!sessionId) return;
+  sendMsg({
+    type: "removeEnemy",
+    sessionId,
+    enemyInstanceId: enemyView.instanceId
+  });
+});
+
+controls.appendChild(removeBtn);
+
     card.appendChild(controls);
 
-    if (def?.abilities?.length) {
-      const abilitiesWrap = document.createElement("div");
-      abilitiesWrap.className = "enemy-abilities";
-
-      def.abilities.forEach((ab) => {
-        const btn = document.createElement("button");
-        btn.className = "enemy-ability-btn";
-        btn.textContent =
-          `${ab.name}` +
-          (ab.roll && ab.roll !== "—" ? ` (${ab.roll})` : "") +
-          (ab.cost ? ` [${ab.cost} NX]` : "");
-
-        btn.addEventListener("click", () => {
-          if (!sessionId) return;
-          sendMsg({
-            type: "enemyUseAbility",
-            sessionId,
-            enemyInstanceId: enemy.instanceId,
-            abilityId: ab.id
-          });
-        });
-
-        abilitiesWrap.appendChild(btn);
-      });
-
-      card.appendChild(abilitiesWrap);
-    } else {
-      const warn = document.createElement("div");
-      warn.textContent = "Enemy abilities not loaded (enemy_defs.js missing or key mismatch).";
-      card.appendChild(warn);
-    }
-
+    // Finally add card to the panel
     panel.appendChild(card);
   });
 }
+
+  
 
 // -----------------------------------------------------------------------------
 // COMBAT LOG
